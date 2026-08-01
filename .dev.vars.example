@@ -1,0 +1,4 @@
+# Local-only secrets. Copy to .dev.vars (git-ignored) for `npm run dev`.
+# In production these are set with `npx wrangler secret put <NAME>`.
+TELEGRAM_BOT_TOKEN=123456:dummy-local-token
+ADMIN_TOKEN=local-dev-token

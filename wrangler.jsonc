@@ -1,6 +1,9 @@
 /**
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * NOTE: `nodejs_compat` is intentionally NOT enabled. This Worker must not use
+ * Node built-ins — an accidental `node:*` import should fail the build.
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
@@ -11,35 +14,24 @@
 		"enabled": true
 	},
 	"upload_source_maps": true,
-	"compatibility_flags": [
-		"nodejs_compat"
-	]
-	/**
-	 * Smart Placement
-	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
-	// "placement": {  "mode": "smart" }
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
-	// "vars": {  "MY_VARIABLE": "production_value" }
-	/**
-	 * Static Assets
-	 * https://developers.cloudflare.com/workers/static-assets/binding/
-	 */
-	// "assets": {  "directory": "./public/",  "binding": "ASSETS" }
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
+	"triggers": {
+		// Cron triggers do not retry. Each tick polls COMPANIES_PER_TICK companies
+		// and advances the cursor, so the full board list rotates over several ticks.
+		"crons": ["*/15 * * * *"]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "job-bot-db",
+			// TODO: paste the id printed by `npx wrangler d1 create job-bot-db`
+			"database_id": "REPLACE_WITH_DATABASE_ID",
+			"migrations_dir": "migrations"
+		}
+	],
+	"vars": {
+		"TELEGRAM_CHAT_ID": "REPLACE_WITH_CHAT_ID"
+	}
+	// Secrets (never in this file):
+	//   npx wrangler secret put TELEGRAM_BOT_TOKEN
+	//   npx wrangler secret put ADMIN_TOKEN     # optional, gates POST /run
 }
