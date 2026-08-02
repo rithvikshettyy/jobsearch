@@ -1,0 +1,73 @@
+# Input for `npm run resolve`. One company name per line.
+# `#` starts a comment. Blank lines are ignored.
+#
+# The resolver guesses the board slug from the name and probes Greenhouse,
+# Lever and Ashby. When it guesses wrong, pin the answer instead:
+#
+#   Some Startup = greenhouse:somestartup
+#
+# Seeded from scripts/companies.json — extend freely.
+
+Stripe
+Cloudflare
+Databricks
+Datadog
+MongoDB
+Postman
+Ramp
+Linear
+OpenAI
+Notion
+ClickHouse
+Plaid
+CRED
+Meesho
+
+# India-focused batch
+Zepto
+Lucidity
+Swish
+PhonePe
+Jar
+Swiggy
+Groww
+Razorpay
+Bhanzu
+Refyne India
+EMotorad
+Convin
+Ather Energy
+Infosys
+Tata Consultancy Services
+Amazon India
+Capgemini India
+ServiceNow India
+Atlassian India
+Salesforce India
+American Express India
+JPMorgan Chase India
+Morgan Stanley India
+Ola
+Zomato
+Flipkart
+Slice
+Digit Insurance
+Urban Company
+Udaan
+LeadSquared
+Licious
+Spinny
+Ninjacart
+Pocket FM
+Porter
+Khatabook
+Rupeek
+Open
+Curefoods
+Dunzo
+Myntra
+BookMyShow
+Delhivery
+Nykaa
+Paytm
+InMobi

@@ -17,19 +17,28 @@
 	"triggers": {
 		// Cron triggers do not retry. Each tick polls COMPANIES_PER_TICK companies
 		// and advances the cursor, so the full board list rotates over several ticks.
-		"crons": ["*/15 * * * *"]
+		// */2 is a burn-in cadence: 14 active companies rotate in ~4 minutes. Move
+		// back to */15 once the deploy is proven — ATS boards do not update faster
+		// than hourly, so the extra ticks buy freshness that does not exist.
+		"crons": ["*/2 * * * *"]
 	},
 	"d1_databases": [
 		{
+			// Must stay "DB" — src/ reads env.DB everywhere.
 			"binding": "DB",
 			"database_name": "job-bot-db",
-			// TODO: paste the id printed by `npx wrangler d1 create job-bot-db`
-			"database_id": "REPLACE_WITH_DATABASE_ID",
+			"database_id": "d45bc1b8-38ec-440d-82f6-6654b89fe353",
 			"migrations_dir": "migrations"
 		}
 	],
 	"vars": {
-		"TELEGRAM_CHAT_ID": "REPLACE_WITH_CHAT_ID"
+		// "JobSearch" group. One sendMessage reaches every member, so adding people
+		// costs no extra subrequests. Not a secret — a chat id is useless without
+		// the bot token.
+		//
+		// NOTE: if Telegram ever upgrades this group to a supergroup, the id
+		// changes to a -100... form and sends start failing with "chat not found".
+		"TELEGRAM_CHAT_ID": "-5552339802"
 	}
 	// Secrets (never in this file):
 	//   npx wrangler secret put TELEGRAM_BOT_TOKEN

@@ -1,4 +1,4 @@
-export type SourceId = 'greenhouse' | 'lever' | 'ashby';
+export type SourceId = 'greenhouse' | 'lever' | 'ashby' | 'remotive' | 'remoteok';
 
 export interface Env {
 	DB: D1Database;
@@ -14,6 +14,8 @@ export interface Company {
 	source: SourceId;
 	/** Board slug/token on the ATS, e.g. "stripe" in boards.greenhouse.io/stripe. */
 	board: string;
+	/** Priority band, 1 = highest. Seeded rows default to 2. */
+	tier: number;
 }
 
 /** Phase-1 shape. Light endpoints only — no description body. */
@@ -30,6 +32,12 @@ export interface Job {
 /** Phase-2 shape. Only ever built for ids absent from `seen_postings`. */
 export interface JobDetail extends Job {
 	description: string;
+	/**
+	 * Minimum years of experience, parsed from `description`. Optional because no
+	 * ATS reports it — a source module leaves it unset and it stays null in D1
+	 * until something downstream parses the JD.
+	 */
+	yoeMin?: number | null;
 }
 
 export interface Source {

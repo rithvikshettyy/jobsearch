@@ -1,15 +1,16 @@
 import { isSourceId } from './sources';
-import type { Company, Env, Job } from './types';
+import type { Company, Env, JobDetail } from './types';
 
 interface CompanyRow {
 	id: number;
 	name: string;
 	source: string;
 	board: string;
+	tier: number;
 }
 
 function toCompany(row: CompanyRow): Company | null {
-	return isSourceId(row.source) ? { id: row.id, name: row.name, source: row.source, board: row.board } : null;
+	return isSourceId(row.source) ? { id: row.id, name: row.name, source: row.source, board: row.board, tier: row.tier } : null;
 }
 
 export async function readCursor(env: Env): Promise<number> {
@@ -35,7 +36,7 @@ export async function selectShard(env: Env, cursor: number, size: number): Promi
 	if (total === 0) return { companies: [], nextCursor: 0 };
 
 	const offset = cursor % total;
-	const select = `SELECT id, name, source, board FROM companies WHERE active = 1 ORDER BY id LIMIT ?1 OFFSET ?2`;
+	const select = `SELECT id, name, source, board, tier FROM companies WHERE active = 1 ORDER BY id LIMIT ?1 OFFSET ?2`;
 
 	const head = await env.DB.prepare(select).bind(size, offset).all<CompanyRow>();
 	const rows = [...head.results];
@@ -75,15 +76,32 @@ export async function filterUnnotified(env: Env, keys: string[]): Promise<Set<st
 	return new Set(keys.filter((key) => !known.has(key)));
 }
 
-export async function recordNotified(env: Env, rows: Array<{ key: string; companyId: number; job: Job }>, now: string): Promise<void> {
+export async function recordNotified(
+	env: Env,
+	rows: Array<{ key: string; companyId: number; job: JobDetail }>,
+	now: string,
+): Promise<void> {
 	if (rows.length === 0) return;
 	const statement = env.DB.prepare(
-		`INSERT OR IGNORE INTO jobs (dedupe_key, company_id, external_id, company, title, location, url, posted_at, notified_at)
-		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
+		// created_at doubles as notified_at here: this path only ever writes a row
+		// that has already been sent. store.ts is the insert-then-send variant.
+		`INSERT OR IGNORE INTO jobs (dedupe_key, company_id, external_id, company, title, location, url, posted_at, yoe_min, notified, created_at, notified_at)
+		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?10)`,
 	);
 	await env.DB.batch(
 		rows.map(({ key, companyId, job }) =>
-			statement.bind(key, companyId, job.externalId, job.company, job.title, job.location, job.url, job.postedAt, now),
+			statement.bind(
+				key,
+				companyId,
+				job.externalId,
+				job.company,
+				job.title,
+				job.location,
+				job.url,
+				job.postedAt,
+				job.yoeMin ?? null,
+				now,
+			),
 		),
 	);
 }

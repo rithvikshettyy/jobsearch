@@ -20,8 +20,27 @@ export const JOBS_PER_MESSAGE = 5;
  * Pure config — `filters.ts` does the matching and stays I/O-free.
  */
 export const FILTERS: FilterConfig = {
-	titleAllow: ['software engineer', 'backend', 'full stack', 'fullstack', 'platform engineer', 'new grad', 'university grad'],
-	titleDeny: ['senior', 'staff', 'principal', 'director', 'manager', 'lead', 'intern', 'sales', 'recruiter'],
+	// Matched whole-token against a punctuation-flattened title, so "front end"
+	// also covers "Front-End" and the one-word spellings need their own entry.
+	titleAllow: [
+		'frontend',
+		'front end',
+		'backend',
+		'back end',
+		'fullstack',
+		'full stack',
+		'react',
+		'javascript',
+		'software engineer',
+		'software development engineer',
+		'swe',
+		'sde',
+		'staff engineer',
+		// Entry-level wording that no keyword above would catch.
+		'new grad',
+		'university grad',
+	],
+	titleDeny: ['senior', 'principal', 'director', 'manager', 'lead', 'intern', 'sales', 'recruiter'],
 	locationAllow: ['india', 'bengaluru', 'bangalore', 'hyderabad', 'pune', 'delhi', 'gurgaon', 'noida', 'mumbai', 'chennai'],
 	allowRemote: true,
 	maxAgeDays: 30,
