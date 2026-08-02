@@ -36,9 +36,25 @@ export const FILTERS: FilterConfig = {
 		'swe',
 		'sde',
 		'staff engineer',
-		// Entry-level wording that no keyword above would catch.
+		// Python / ML / AI families.
+		'python',
+		'machine learning',
+		'ml engineer',
+		'ml developer',
+		'ai engineer',
+		'ai developer',
+		'agentic',
+		'generative ai',
+		'genai',
+		'llm',
+		// Entry-level wording that no keyword above would catch. Bare "trainee" was
+		// tried and removed: on live boards it only ever matched non-engineering
+		// roles ("Industrial Trainee - Controllership"), because a real engineering
+		// trainee post already matches one of the role keywords above.
 		'new grad',
 		'university grad',
+		'fresher',
+		'graduate engineer',
 	],
 	titleDeny: ['senior', 'principal', 'director', 'manager', 'lead', 'intern', 'sales', 'recruiter'],
 	locationAllow: ['india', 'bengaluru', 'bangalore', 'hyderabad', 'pune', 'delhi', 'gurgaon', 'noida', 'mumbai', 'chennai'],
