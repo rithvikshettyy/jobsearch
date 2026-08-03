@@ -232,18 +232,28 @@ function containsPhrase(flat: string, phrase: string): boolean {
 }
 
 /**
+ * Bands that explicitly mark the FIRST rung, even when the title also carries a
+ * word the seniority list rejects. "Technical Lead L1" is an entry role at the
+ * companies that use this scheme, so the L1 tag has to outrank the word "lead".
+ */
+const JUNIOR_OVERRIDE = ['l1', 'level 1', 'i1'];
+
+/**
  * Title gate. The seniority denylist always applies; `config` layers the
  * per-search allow/deny on top when supplied.
  */
 export function roleOk(title: string, config?: Pick<FilterConfig, 'titleAllow' | 'titleDeny'>): boolean {
 	const flat = normalize(title);
-	if (SENIORITY_DENY.some((word) => containsPhrase(flat, word))) return false;
+	// An explicit L1 band overrides both denylists — but never the allowlist, so
+	// a non-engineering "Support L1" still has to match a role keyword.
+	const junior = JUNIOR_OVERRIDE.some((tag) => containsPhrase(flat, tag));
+	if (!junior && SENIORITY_DENY.some((word) => containsPhrase(flat, word))) return false;
 	if (config === undefined) return true;
 	// Whole-token, not substring: the search carries short keywords ("swe", "sde")
 	// that otherwise match inside unrelated words — "Swedish Speaking" is not a
 	// software role. Normalisation flattens punctuation first, so a single
 	// "full stack" entry covers "Full-Stack" and "Full Stack" alike.
-	if (config.titleDeny.some((word) => containsPhrase(flat, word))) return false;
+	if (!junior && config.titleDeny.some((word) => containsPhrase(flat, word))) return false;
 	return config.titleAllow.length === 0 || config.titleAllow.some((word) => containsPhrase(flat, word));
 }
 

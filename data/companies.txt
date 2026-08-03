@@ -71,3 +71,53 @@ Delhivery
 Nykaa
 Paytm
 InMobi
+
+# From "50 Remote Companies Hiring in India" (Google Sheet, July 2026)
+GitLab
+Zapier
+Automattic
+Buffer
+Doist
+Deel
+Remote.com
+Turing
+Toptal
+Atlassian
+Grafana Labs
+Elastic
+Twilio
+Dropbox
+Help Scout
+Kit
+Close
+Supabase
+PostHog
+Bitwarden
+Camunda
+RevenueCat
+Customer.io
+MailerLite
+Trail of Bits
+Freshworks
+Zoho
+BrowserStack
+Chargebee
+Atlan
+Hasura
+Redis
+Springworks
+Hashnode
+Appsmith
+Uplers
+CleverTap
+Whatfix
+Darwinbox
+Innovaccer
+Rocketlane
+Recruit CRM
+Canonical
+Mozilla
+Wikimedia Foundation
+X-Team
+Andela
+SafetyWing

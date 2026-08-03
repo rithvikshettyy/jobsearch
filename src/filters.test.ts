@@ -110,6 +110,22 @@ describe('roleOk', () => {
 	it('does not match a seniority word inside a longer word', () => {
 		expect(roleOk('Disaster Recovery Engineer')).toBe(true);
 	});
+
+	it('lets an explicit L1 band outrank the seniority denylist', () => {
+		expect(roleOk('Technical Lead L1')).toBe(true);
+		expect(roleOk('Software Engineer L1', config)).toBe(true);
+		expect(roleOk('Developer Level 1')).toBe(true);
+	});
+
+	it('still requires the allowlist for an L1 title', () => {
+		// The override bypasses the denylists, never the allowlist.
+		expect(roleOk('Customer Support L1', config)).toBe(false);
+	});
+
+	it('keeps rejecting an unbanded lead title', () => {
+		expect(roleOk('Technical Lead')).toBe(false);
+		expect(roleOk('Lead Backend Engineer', config)).toBe(false);
+	});
 });
 
 describe('geoOk', () => {

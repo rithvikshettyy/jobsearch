@@ -32,10 +32,18 @@ export const FILTERS: FilterConfig = {
 		'react',
 		'javascript',
 		'software engineer',
+		'software developer',
 		'software development engineer',
 		'swe',
 		'sde',
 		'staff engineer',
+		'product engineer',
+		// L1 bands. "lead" is denied outright, so "Technical Lead L1" only gets
+		// through via the junior override in filters.ts.
+		'developer l1',
+		'engineer l1',
+		'technical lead l1',
+		'tech lead l1',
 		// Python / ML / AI families.
 		'python',
 		'machine learning',
