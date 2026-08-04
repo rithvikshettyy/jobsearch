@@ -26,18 +26,42 @@ Telegram bot. Polls ATS job boards, filters, pushes new matching jobs to one Tel
 ## Style
 
 - TypeScript strict. No `any`.
-- Every source module exports `fetchJobs(company): Promise<Job[]>` — same signature, no exceptions.
+- Every source module exports `fetchJobs(company, env): Promise<Job[]>` — same signature, no exceptions.
 - Pure functions in `filters.ts`, zero I/O, so they're unit-testable with vitest.
 
 ## Source module contract
 
 Each file in `src/sources/` exports a `Source` (see `src/types.ts`):
 
-- `fetchJobs(company): Promise<Job[]>` — phase 1. **Exactly 1 subrequest.** Light payload only;
+- `fetchJobs(company, env): Promise<Job[]>` — phase 1. **Exactly 1 subrequest.** Light payload only;
   never touches description bodies even when the ATS returns them inline.
-- `fetchDetails(company, jobs): Promise<JobDetail[]>` — phase 2, only for unseen ids.
+- `fetchDetails(company, jobs, env): Promise<JobDetail[]>` — phase 2, only for unseen ids.
 - `detailCost(n): number` — subrequests `fetchDetails` will spend on `n` jobs. The orchestrator
-  uses this to stay under the 50-subrequest cap. Greenhouse/Lever = `n`, Ashby = `1`.
+  uses this to stay under the 50-subrequest cap. Greenhouse/Lever = `n`, everything else = `1`.
+
+`env` carries the API keys for the keyed aggregators — `process.env` does not exist here. The ATS
+modules simply omit the parameter; TypeScript accepts the narrower signature, so they stay unchanged.
+
+## Sources
+
+| id                    | kind       | `board` column means                          |
+| --------------------- | ---------- | --------------------------------------------- |
+| `greenhouse`/`lever`/`ashby` | ATS  | employer board slug                           |
+| `remotive`/`remoteok` | feed       | category slug, or `all`                       |
+| `adzuna`              | aggregator | `country:what:where` (e.g. `in:python developer:pune`) |
+| `jsearch`             | aggregator | `query\|country\|date_posted`                  |
+
+Adzuna and JSearch are the supported route to Indeed / ZipRecruiter / Glassdoor / Monster / Naukri
+listings — those sites cannot be polled directly (RSS removed, APIs closed, Cloudflare and reCAPTCHA
+walls), and their HTML is 260KB–870KB per page, far past the 10ms CPU budget. See the header comment
+in `migrations/0005_aggregator_sources.sql` for the per-site probe results.
+
+Two caveats worth knowing before trusting their output:
+
+- **Adzuna truncates descriptions** to ~200 chars. `descriptionDeny` and the YoE parse only see a
+  snippet, so the detail gates under-match on that source. Titles and locations are complete.
+- **JSearch free tier is 200 requests/MONTH.** At the current `*/2` cron that is gone in under a day,
+  so its seed row ships `active = 0`. Move the cron to hourly or slower before switching it on.
 
 ## Tables
 

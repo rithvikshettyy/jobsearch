@@ -43,4 +43,7 @@
 	// Secrets (never in this file):
 	//   npx wrangler secret put TELEGRAM_BOT_TOKEN
 	//   npx wrangler secret put ADMIN_TOKEN     # optional, gates POST /run
+	//   npx wrangler secret put ADZUNA_APP_ID   # optional, for the adzuna source
+	//   npx wrangler secret put ADZUNA_APP_KEY
+	//   npx wrangler secret put RAPIDAPI_KEY    # optional, for the jsearch source
 }
