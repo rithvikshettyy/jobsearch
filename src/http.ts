@@ -15,10 +15,14 @@ export class HttpError extends Error {
  * One subrequest. Typed as `unknown` on purpose — every caller narrows with its
  * own guard rather than casting, so a board changing shape fails loudly in the
  * source module instead of silently producing half-empty rows.
+ *
+ * `headers` is for keyed APIs only (RapidAPI wants the key in a header, not the
+ * query string). It merges over the defaults, so a caller can override the
+ * user-agent but never has to restate `accept`.
  */
-export async function getJson(url: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<unknown> {
+export async function getJson(url: string, timeoutMs = DEFAULT_TIMEOUT_MS, headers: Record<string, string> = {}): Promise<unknown> {
 	const response = await fetch(url, {
-		headers: { accept: 'application/json', 'user-agent': USER_AGENT },
+		headers: { accept: 'application/json', 'user-agent': USER_AGENT, ...headers },
 		signal: AbortSignal.timeout(timeoutMs),
 	});
 	if (!response.ok) throw new HttpError(response.status, url);

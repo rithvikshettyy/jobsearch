@@ -2,3 +2,14 @@
 # In production these are set with `npx wrangler secret put <NAME>`.
 TELEGRAM_BOT_TOKEN=123456:dummy-local-token
 ADMIN_TOKEN=local-dev-token
+
+# Aggregator API keys. Both optional — a source whose key is missing throws, the
+# error lands in the `errors` table, and the rest of the shard keeps polling.
+#
+# Adzuna: free key at https://developer.adzuna.com/ (250 calls/day).
+ADZUNA_APP_ID=dummy-adzuna-app-id
+ADZUNA_APP_KEY=dummy-adzuna-app-key
+#
+# JSearch via RapidAPI: https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
+# Free tier is 200 requests/MONTH — see migrations/0005 before activating it.
+RAPIDAPI_KEY=dummy-rapidapi-key

@@ -1,4 +1,4 @@
-export type SourceId = 'greenhouse' | 'lever' | 'ashby' | 'remotive' | 'remoteok';
+export type SourceId = 'greenhouse' | 'lever' | 'ashby' | 'remotive' | 'remoteok' | 'adzuna' | 'jsearch';
 
 export interface Env {
 	DB: D1Database;
@@ -6,6 +6,11 @@ export interface Env {
 	TELEGRAM_CHAT_ID: string;
 	/** Optional. When set, POST /run requires this value in the `x-admin-token` header. */
 	ADMIN_TOKEN?: string;
+	/** Adzuna API credentials (developer.adzuna.com). Absent = the adzuna source throws. */
+	ADZUNA_APP_ID?: string;
+	ADZUNA_APP_KEY?: string;
+	/** RapidAPI key for JSearch. Absent = the jsearch source throws. */
+	RAPIDAPI_KEY?: string;
 }
 
 export interface Company {
@@ -44,10 +49,14 @@ export interface Source {
 	/**
 	 * Phase 1. MUST cost exactly 1 subrequest — the orchestrator's budget math
 	 * assumes it, and there is no retry on a cron trigger.
+	 *
+	 * `env` is passed to every source, not just the keyed ones, so the contract
+	 * stays a single shape. ATS sources ignore it; Adzuna and JSearch read their
+	 * credentials from it, because `process.env` does not exist on Workers.
 	 */
-	fetchJobs(company: Company): Promise<Job[]>;
+	fetchJobs(company: Company, env: Env): Promise<Job[]>;
 	/** Phase 2. Called only with jobs whose ids are new. */
-	fetchDetails(company: Company, jobs: Job[]): Promise<JobDetail[]>;
+	fetchDetails(company: Company, jobs: Job[], env: Env): Promise<JobDetail[]>;
 	/** Subrequests `fetchDetails` spends on `n` jobs. */
 	detailCost(n: number): number;
 }

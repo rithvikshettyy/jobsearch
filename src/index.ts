@@ -36,7 +36,7 @@ function createReserve(total: number): (wanted: number) => number {
  */
 async function pollCompany(env: Env, company: Company, budget: SubrequestBudget): Promise<Job[]> {
 	if (!budget.take(1)) return [];
-	const jobs = await getSource(company.source).fetchJobs(company);
+	const jobs = await getSource(company.source).fetchJobs(company, env);
 
 	const seen = await readSeenIds(env, company.id);
 	return jobs.filter((job) => !seen.has(job.externalId));
@@ -74,7 +74,7 @@ async function detailCompany(
 	if (batch.length === 0) return { pending: [], detailed: 0 };
 	if (!budget.take(source.detailCost(batch.length))) return { pending: [], detailed: 0 };
 
-	const details = await source.fetchDetails(company, batch);
+	const details = await source.fetchDetails(company, batch, env);
 	await markSeen(
 		env,
 		company.id,
