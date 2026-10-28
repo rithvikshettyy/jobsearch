@@ -1,0 +1,39 @@
+# OPTIONAL. The default is the local Task Scheduler job in README.md.
+#
+# To use this: copy it to .github/workflows/x-scraper.yml in a PRIVATE copy of the job-bot repo (this folder is
+# its x-scraper/ directory). NOT in a public repo: Actions logs on a public repo are readable by anyone.
+# Then add these repository secrets (Settings, Secrets and variables, Actions):
+#   JOB_BOT_URL, INGEST_KEY, X_BURNER_USERNAME, X_BURNER_COOKIES
+# The secrets are masked in Actions logs, and the scraper masks them again before logging.
+name: x-scraper
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+# Two overlapping runs would double-post, so a new one waits for the old one.
+concurrency:
+  group: x-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: x-scraper/requirements.txt
+      - run: pip install -r requirements.txt
+        working-directory: x-scraper
+      - run: python x_scraper.py
+        working-directory: x-scraper
+        env:
+          JOB_BOT_URL: ${{ secrets.JOB_BOT_URL }}
+          INGEST_KEY: ${{ secrets.INGEST_KEY }}
+          X_BURNER_USERNAME: ${{ secrets.X_BURNER_USERNAME }}
+          X_BURNER_COOKIES: ${{ secrets.X_BURNER_COOKIES }}

@@ -1,0 +1,3 @@
+twscrape>=0.17
+twikit>=2.3
+httpx>=0.27

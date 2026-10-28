@@ -1,0 +1,56 @@
+{
+  "redirects": {
+    "https://bit.ly/3fde": "https://jobs.ashbyhq.com/gamma/1234abcd?utm_campaign=x&utm_medium=social"
+  },
+  "tweets": [
+    {
+      "id": "1850000000000000010", "username": "RohoolAgi", "hours_ago": 3,
+      "text": "We're hiring an AI Engineer (0-2 yrs) at Acme! Remote India. Apply: https://t.co/abc123 #hiring",
+      "links": ["https://boards.greenhouse.io/acme/jobs/4455?gh_src=tw&utm_source=twitter"]
+    },
+    {
+      "id": "1850000000000000009", "username": "RohoolAgi", "hours_ago": 5,
+      "text": "Hiring Senior ML Engineer at Beta, 6+ years https://t.co/x1",
+      "links": ["https://jobs.lever.co/beta/9f8e7d?lever-source=Twitter"]
+    },
+    {
+      "id": "1850000000000000011", "username": "Ajay_2512x", "hours_ago": 4,
+      "text": "Forward Deployed Engineer role open at Gamma. Details: https://bit.ly/3fde",
+      "links": ["https://bit.ly/3fde"]
+    },
+    {
+      "id": "1850000000000000012", "username": "Ajay_2512x", "hours_ago": 6,
+      "text": "Shipped an LLM side project this weekend https://github.com/someone/project",
+      "links": ["https://github.com/someone/project"]
+    },
+    {
+      "id": "1850000000000000013", "username": "RohoolAgi", "hours_ago": 7, "is_retweet": true,
+      "text": "RT @someone: AI Engineer opening, apply https://boards.greenhouse.io/other/jobs/1",
+      "links": ["https://boards.greenhouse.io/other/jobs/1"]
+    },
+    {
+      "id": "1850000000000000014", "username": "Ajay_2512x", "hours_ago": 8,
+      "text": "ML Engineer intern (PPO on performance) at Delta Labs, apply https://careers.delta-labs.io/jobs/ml-intern?ref=twitter",
+      "links": ["https://careers.delta-labs.io/jobs/ml-intern?ref=twitter"]
+    },
+    {
+      "id": "1850000000000000015", "username": "Ajay_2512x", "hours_ago": 2,
+      "text": "Another look at that AI Engineer role at Acme https://t.co/q9",
+      "links": ["https://www.boards.greenhouse.io/acme/jobs/4455/?utm_source=linkedin"]
+    },
+    {
+      "id": "1850000000000000016", "username": "RohoolAgi", "hours_ago": 9,
+      "text": "AI engineer needed urgently, DM me if interested"
+    },
+    {
+      "id": "1850000000000000001", "username": "Ajay_2512x", "hours_ago": 200,
+      "text": "AI Engineer at Old Co https://boards.greenhouse.io/oldco/jobs/7",
+      "links": ["https://boards.greenhouse.io/oldco/jobs/7"]
+    },
+    {
+      "id": "1850000000000000018", "username": "RohoolAgi", "hours_ago": 10, "is_reply": true,
+      "text": "@someone yes we hire ML engineers too https://jobs.lever.co/zeta/1",
+      "links": ["https://jobs.lever.co/zeta/1"]
+    }
+  ]
+}

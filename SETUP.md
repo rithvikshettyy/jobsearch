@@ -96,7 +96,7 @@ Statuses: `new`, `approved`, `skipped`, `applying`, `applied`, `failed`, `manual
 
 ## Part 1: X scraper
 
-Lives in `D:\Desktop\JobSearch\x-scraper`. Full steps are in its `README.md`; the short version:
+Lives in the `x-scraper` folder of this repo (`D:\Desktop\JobSearch\job-bot\x-scraper` on this machine). Full steps are in its `README.md`; the short version:
 
 1. Finish Part 2 first (the scraper pushes to `/ingest`, and needs `INGEST_KEY`).
 2. Create a **burner** X account, copy its `auth_token` and `ct0` cookies into `x-scraper\.env` (see `.env.example`).
@@ -105,7 +105,7 @@ Lives in `D:\Desktop\JobSearch\x-scraper`. Full steps are in its `README.md`; th
 5. Schedule it, every 30 minutes:
 
 ```
-schtasks /Create /TN "JobBot X Scraper" /TR "\"D:\Desktop\JobSearch\x-scraper\run_x_scraper.bat\"" /SC MINUTE /MO 30 /F
+schtasks /Create /TN "JobBot X Scraper" /TR "\"D:\Desktop\JobSearch\job-bot\x-scraper\run_x_scraper.bat\"" /SC MINUTE /MO 30 /F
 ```
 
 State lives in D1 (`meta` table), so the scraper can move machines. The Worker holds three more endpoints for it,

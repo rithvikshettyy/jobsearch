@@ -1,0 +1,62 @@
+{
+  "accounts": ["RohoolAgi", "Ajay_2512x"],
+  "min_interval_minutes": 30,
+  "jitter": {
+    "start_seconds": [0, 90],
+    "between_accounts_seconds": [8, 30]
+  },
+  "fetch": {
+    "tweets_per_account": 40,
+    "first_run_lookback_hours": 48,
+    "include_retweets": false,
+    "include_replies": false
+  },
+  "require_link": true,
+  "keywords": {
+    "include": [
+      "ai engineer",
+      "aiengineer",
+      "ml engineer",
+      "mlengineer",
+      "machine learning",
+      "llm",
+      "genai",
+      "generative ai",
+      "applied ai",
+      "ai ml",
+      "aiml",
+      "artificial intelligence",
+      "forward deployed",
+      "fde",
+      "ai intern",
+      "ml intern"
+    ],
+    "exclude": [
+      "senior",
+      "sr",
+      "staff",
+      "principal",
+      "lead",
+      "manager",
+      "director",
+      "head of",
+      "vp",
+      "sales",
+      "recruiter",
+      "not hiring",
+      "open to work",
+      "opentowork",
+      "seeking",
+      "looking for work",
+      "looking for a job",
+      "available for hire"
+    ]
+  },
+  "link_expansion": {
+    "max_hops": 5,
+    "timeout_seconds": 8
+  },
+  "ingest": {
+    "batch_size": 25
+  }
+}
