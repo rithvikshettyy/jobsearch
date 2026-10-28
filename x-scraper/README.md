@@ -47,7 +47,13 @@ run_x_scraper.bat --dry-run --fixture fixtures\sample_tweets.json   offline: no 
 run_x_scraper.bat --dry-run                                         reads real X, prints what it would push, sends nothing
 run_x_scraper.bat --force                                           first real run
 python -m unittest discover -t . -s tests                           the unit tests
+.venv\Scripts\python.exe explain.py                                 every recent tweet with the filter's verdict, to tune config.json
 ```
+
+`explain.py` logs in like a dry run does, sends nothing and saves nothing. Use it when the filter keeps too little or
+too much: each line shows whether the tweet was kept or skipped, why, and how many job links it has. A first live run
+against these two accounts read 85 tweets and showed what the keyword lists needed (plural role words, "recruiter"
+wrongly excluding an FDE internship, a course launch matching "LLMs").
 
 ## Schedule it (Windows Task Scheduler, every 30 minutes)
 

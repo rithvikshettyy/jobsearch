@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from xs.filtering import make_title, matches, normalize, to_item
+from xs.filtering import guess_company, make_title, matches, normalize, to_item
 from xs.links import company_from_url, expand_url, extract_urls, pick_job_link, strip_tracking
 from xs.model import RawTweet
 
@@ -131,3 +131,63 @@ class ItemShape(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FoundInRealTweets(unittest.TestCase):
+    """Each case is a pattern from a live dry run against the two accounts."""
+
+    cfg = __import__("json").loads((__import__("pathlib").Path(__file__).resolve().parents[1] / "config.json").read_text(encoding="utf-8"))
+
+    def keep(self, text):
+        return matches(text, self.cfg["keywords"]["include"], self.cfg["keywords"]["exclude"])[0]
+
+    def test_a_plural_role_word_matches(self):
+        self.assertTrue(matches("Hiring 2 AI interns at FOXO lab, Bengaluru", ["ai intern"], [])[0])
+        self.assertTrue(matches("Hiring ML engineers", ["ml engineer"], [])[0])
+        self.assertFalse(matches("Hiring chains", ["chain engineer"], [])[0])
+
+    def test_the_word_recruiter_no_longer_hides_an_fde_internship(self):
+        text = "Just saw VANCO AI opened Forward Deployed Engineer (FDE) Intern roles in Bengaluru. Ask a recruiter to refer you."
+        self.assertTrue(self.keep(text))
+
+    def test_a_course_launch_that_mentions_llms_is_not_a_job(self):
+        self.assertFalse(self.keep("Today I am launching a course: the hands-on way to learn AI engineering, LLMs, RAG, agents"))
+        self.assertFalse(self.keep("a lot of people want to learn LLMs. 9 papers i would recommend, in order"))
+
+    def test_the_posts_the_accounts_actually_make_still_pass(self):
+        self.assertTrue(self.keep("craftAI AI Engineer - FDE https://t.co/x"))
+        self.assertTrue(self.keep("Kiwi AI Labs team [AI Engineer] https://t.co/y"))
+
+    def test_senior_and_generic_roles_are_still_dropped(self):
+        self.assertFalse(self.keep("Refold AI is Hiring! Open Positions: Head of Engineering, Senior Frontend Engineer"))
+        self.assertFalse(self.keep("VideoSDK Software Developer https://t.co/z"))
+
+    def test_html_entities_do_not_leak_into_titles(self):
+        self.assertEqual(make_title("Fresh drop: R&amp;D Engineer &gt; Pune"), "Fresh drop: R&D Engineer > Pune")
+
+
+class CompanyFromAForm(unittest.TestCase):
+    def test_a_form_or_link_page_host_names_no_company(self):
+        for url in ("https://docs.google.com/forms/d/e/abc/viewform", "https://forms.gle/abc", "https://acme.notion.site/job", "https://linktr.ee/acme", "https://www.linkedin.com/jobs/view/1"):
+            self.assertEqual(company_from_url(url), "Unknown", url)
+
+    def test_the_company_is_read_from_the_tweet_instead(self):
+        self.assertEqual(guess_company("craftAI AI Engineer - FDE https://t.co/x"), "craftAI")
+        self.assertEqual(guess_company("Kiwi AI Labs team [AI Engineer] https://t.co/y"), "Kiwi AI Labs")
+        self.assertEqual(guess_company("VideoSDK Software Developer https://t.co/z"), "VideoSDK")
+        self.assertEqual(guess_company("JLL Software Engineer I Bengaluru"), "JLL")
+
+    def test_it_gives_up_rather_than_inventing_a_name(self):
+        for text in ("Forward Deployed Engineer role open at Gamma", "We're hiring an AI Engineer", "hiring", "", "a b c d e f Engineer"):
+            self.assertIsNone(guess_company(text), text)
+
+
+class CompanyFromASentence(unittest.TestCase):
+    def test_the_name_before_the_hiring_verb(self):
+        self.assertEqual(guess_company("Just saw VANCO AI opened up Forward Deployed Engineer (FDE) Intern roles in Bengaluru"), "VANCO AI")
+        self.assertEqual(guess_company("Fresh engineering drop: Lokal is hiring a Product Intern in Bengaluru"), "Lokal")
+        self.assertEqual(guess_company("Quick heads up for anyone job hunting right now: Auto Wisdom is hiring for Software Developer"), "Auto Wisdom")
+        self.assertEqual(guess_company("Solid opportunity at RentoMojo is hiring SDE 1"), "RentoMojo")
+
+    def test_an_aggregator_link_page_is_not_the_company(self):
+        self.assertEqual(company_from_url("https://joborbit.live/job/4305"), "Unknown")

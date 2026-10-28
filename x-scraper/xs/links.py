@@ -123,10 +123,25 @@ def _pretty(slug: str) -> str:
     return re.sub(r"[-_]+", " ", slug).strip().title()
 
 
+# Hosts that say nothing about who is hiring: a form or a link page, not the employer's own site.
+GENERIC_HOSTS = {
+    "docs.google.com", "drive.google.com", "forms.gle", "forms.office.com", "typeform.com", "airtable.com",
+    "jotform.com", "tally.so", "notion.so", "notion.site", "linktr.ee", "bit.ly", "tinyurl.com", "lnkd.in",
+    "linkedin.com", "t.co", "wa.me", "calendly.com",
+    # Job aggregators the followed accounts promote: the page is theirs, the employer is named in the tweet.
+    "joborbit.live", "joborbit.com",
+}
+
+
 def company_from_url(url: str) -> str:
-    """A best-effort employer name. Boards that put the company in the path use it, others use the domain."""
+    """A best-effort employer name. Boards that put the company in the path use it, others use the domain.
+
+    A form or link-page host gives "Unknown" so the caller can try the tweet text instead.
+    """
     parts = urlsplit(url)
     host = host_of(url)
+    if any(host == generic or host.endswith("." + generic) for generic in GENERIC_HOSTS):
+        return "Unknown"
     path = [segment for segment in parts.path.split("/") if segment]
     if host in _ATS_SLUG_HOSTS and path:
         return _pretty(path[0])

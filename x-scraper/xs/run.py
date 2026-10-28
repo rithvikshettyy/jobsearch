@@ -10,7 +10,7 @@ from typing import Any, Awaitable, Callable
 
 from .api import ApiError
 from .fetch import urls_in
-from .filtering import matches, to_item
+from .filtering import guess_company, matches, to_item
 from .links import Resolver, company_from_url, expand_url, pick_job_link, strip_tracking
 from .model import AuthFailure, FetchError, RawTweet
 
@@ -82,6 +82,8 @@ def build_items(tweets: list[RawTweet], cfg: dict[str, Any], resolver: Resolver 
         seen_urls.add(job_url)
 
         company = company_from_url(job_url) if job_url != tweet.url else tweet.username
+        if company == "Unknown":
+            company = guess_company(tweet.text) or "Unknown"
         items.append(to_item(tweet, job_url, company))
     return items
 

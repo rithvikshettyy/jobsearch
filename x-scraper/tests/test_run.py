@@ -179,3 +179,23 @@ class AuthFailureHandling(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CompanyForAFormLink(unittest.TestCase):
+    def test_a_google_form_job_gets_the_company_from_the_tweet_not_google(self):
+        from datetime import datetime, timezone
+
+        from xs.model import RawTweet
+        from xs.run import build_items
+
+        tweet = RawTweet(
+            id="9", text="craftAI AI Engineer - FDE https://t.co/jX", created_at=datetime.now(timezone.utc),
+            url="https://x.com/a/status/9", username="a", links=["https://docs.google.com/forms/d/e/abc/viewform"],
+        )
+        counts = {"retweet": 0, "reply": 0, "keyword": 0, "no_link": 0, "duplicate_in_run": 0}
+        items = build_items([tweet], CONFIG, None, set(), counts)
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["company"], "craftAI")
+        self.assertEqual(items[0]["title"], "craftAI AI Engineer - FDE")
+        self.assertEqual(items[0]["url"], "https://docs.google.com/forms/d/e/abc/viewform")

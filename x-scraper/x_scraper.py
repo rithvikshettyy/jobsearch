@@ -66,6 +66,8 @@ def setup_logging(secrets: list[str], verbose: bool) -> None:
         handler.addFilter(redactor)
         handler.setFormatter(formatter)
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, handlers=handlers, force=True)
+    # httpx logs every request URL at INFO, which buries the run summary under X's long GraphQL query strings.
+    logging.getLogger("httpx").setLevel(logging.DEBUG if verbose else logging.WARNING)
 
 
 class Lock:
@@ -100,6 +102,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true", help="ignore the 30 minute gap between runs")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
+
+    # Tweets carry rupee signs, emoji and Indic text; the Windows console and pipes default to cp1252 and
+    # crash on them. Task Scheduler runs have no console at all, so this matters there too.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
 
     cfg = json.loads(args.config.read_text(encoding="utf-8"))
     env = load_env(args.env)

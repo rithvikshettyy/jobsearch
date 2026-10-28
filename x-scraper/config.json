@@ -1,9 +1,18 @@
 {
-  "accounts": ["RohoolAgi", "Ajay_2512x"],
+  "accounts": [
+    "RohoolAgi",
+    "Ajay_2512x"
+  ],
   "min_interval_minutes": 30,
   "jitter": {
-    "start_seconds": [0, 90],
-    "between_accounts_seconds": [8, 30]
+    "start_seconds": [
+      0,
+      90
+    ],
+    "between_accounts_seconds": [
+      8,
+      30
+    ]
   },
   "fetch": {
     "tweets_per_account": 40,
@@ -42,14 +51,22 @@
       "head of",
       "vp",
       "sales",
-      "recruiter",
       "not hiring",
       "open to work",
       "opentowork",
       "seeking",
       "looking for work",
       "looking for a job",
-      "available for hire"
+      "available for hire",
+      "launching",
+      "course",
+      "courses",
+      "tutorial",
+      "webinar",
+      "papers",
+      "learn",
+      "interview experience",
+      "interview prep"
     ]
   },
   "link_expansion": {
