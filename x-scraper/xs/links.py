@@ -52,6 +52,9 @@ def _is_tracking(name: str) -> bool:
     return key in TRACKING_PARAMS or key.startswith(TRACKING_PREFIXES)
 
 
+_LINKEDIN_POSTING = re.compile(r"^/jobs/view/(?:[^/]*-)?(\d{6,})/?$")
+
+
 def strip_tracking(url: str) -> str | None:
     """https, no www, no fragment, no tracking params, sorted params, no trailing slash. None if not http(s)."""
     try:
@@ -61,6 +64,12 @@ def strip_tracking(url: str) -> str | None:
     if parts.scheme not in ("http", "https") or not parts.hostname:
         return None
     host = parts.hostname.lower().removeprefix("www.")
+    # A LinkedIn posting is identified by its number alone: slug, country subdomain and every query parameter
+    # change per visit. Mirrors normalizeUrl in the Worker.
+    if host == "linkedin.com" or host.endswith(".linkedin.com"):
+        posting = _LINKEDIN_POSTING.match(parts.path)
+        if posting:
+            return f"https://www.linkedin.com/jobs/view/{posting.group(1)}"
     kept = sorted((k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if not _is_tracking(k))
     query = f"?{urlencode(kept)}" if kept else ""
     return f"https://{host}{parts.path.rstrip('/')}{query}"

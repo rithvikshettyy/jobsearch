@@ -373,3 +373,33 @@ describe('intern and PPO detection', () => {
 		expect(mentionsPpo('We will happen to offer snacks')).toBe(false);
 	});
 });
+
+describe('work authorization wording', () => {
+	it('rejects the spelled-out and negated forms that used to slip through', () => {
+		for (const text of [
+			'You must be authorized to work in the United States.',
+			'Candidates must be legally authorised to work in the UK.',
+			'We do not offer visa sponsorship.',
+			'The company does not offer sponsorship for this role.',
+			'Unfortunately we cannot sponsor work visas.',
+			'Visa sponsorship is not available.',
+			'You must have the right to work in the UK.',
+			'Applicants must be eligible to work in Canada.',
+			'This role is open to US persons only.',
+			'No sponsorship will be provided.',
+		]) {
+			expect(geoOk(text), text).toBe(false);
+		}
+	});
+
+	it('does not reject postings that welcome candidates or offer sponsorship', () => {
+		for (const text of [
+			'We offer visa sponsorship and relocation support.',
+			'Open to candidates authorized to work in India.',
+			'We sponsor visas for the right people.',
+			'Remote, work from anywhere. Strong sponsorship of learning and growth.',
+		]) {
+			expect(geoOk(text), text).toBe(true);
+		}
+	});
+});

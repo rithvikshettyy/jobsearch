@@ -253,3 +253,85 @@ describe('POST /ingest when the database fails', () => {
 		expect(calls).toHaveLength(0);
 	});
 });
+
+describe('POST /ingest from the LinkedIn scraper', () => {
+	// Copied from `python linkedin_scraper.py --dry-run --fixture fixtures/sample_jobs.json`, so a change on
+	// either side breaks here first. LinkedIn is not a trusted source: every item goes through the same gates
+	// as a polled job.
+	const fromScraper = [
+  {
+    "url": "https://www.linkedin.com/jobs/view/4000000001",
+    "title": "AI Engineer",
+    "company": "Acme Labs",
+    "location": "Bengaluru, Karnataka, India",
+    "remote": false,
+    "source": "linkedin",
+    "description_snippet": "We want 0-2 years of experience with Python. Strong candidates may convert to a full time role. | You will build and evaluate LLM applications. You will work with a small team. Strong candidates may convert to a full time role.",
+    "posted_at": "2026-10-27T00:00:00+00:00",
+    "yoe_min": 0
+  },
+  {
+    "url": "https://www.linkedin.com/jobs/view/4000000002",
+    "title": "LLM Engineer",
+    "company": "Beta AI",
+    "location": "Hyderabad, Telangana, India",
+    "remote": false,
+    "source": "linkedin",
+    "description_snippet": "Requires 5+ years of experience shipping ML systems. Experience with Kubernetes is a plus. | Own our LLM platform. Experience with Kubernetes is a plus.",
+    "posted_at": "2026-10-26T00:00:00+00:00",
+    "yoe_min": 5
+  },
+  {
+    "url": "https://www.linkedin.com/jobs/view/4000000003",
+    "title": "Forward Deployed Engineer",
+    "company": "Gamma",
+    "location": "Remote",
+    "remote": true,
+    "source": "linkedin",
+    "description_snippet": "You must be authorized to work in the United States. We do not offer visa sponsorship. 1-3 years of experience. | Work with customers on site or remotely. You must be authorized to work in the United States. We do not offer visa sponsorship.",
+    "posted_at": "2026-10-28T00:00:00+00:00",
+    "yoe_min": 1
+  },
+  {
+    "url": "https://www.linkedin.com/jobs/view/4000000004",
+    "title": "Machine Learning Intern",
+    "company": "Delta Research",
+    "location": "Mumbai, Maharashtra, India",
+    "remote": false,
+    "source": "linkedin",
+    "description_snippet": "Outstanding interns receive a PPO. No prior experience needed. | Six month internship working on retrieval models. Outstanding interns receive a PPO. No prior experience needed.",
+    "posted_at": "2026-10-28T00:00:00+00:00"
+  }
+];
+
+	it('queues the entry-level jobs and rejects the ones this search is not for, with the reason', async () => {
+		const body = await ingest(fromScraper);
+		expect(body).toMatchObject({ queued: 2, filtered: 2, duplicate: 0, invalid: 0 });
+		expect(body.results.map((entry) => entry.result + (entry.reason ? `:${entry.reason}` : ''))).toEqual([
+			'queued', // AI Engineer, 0 years, Bengaluru
+			'filtered:yoe', // LLM Engineer asking for 5+ years
+			'filtered:description', // Forward Deployed Engineer that needs US work authorization
+			'queued', // Machine Learning Intern with a PPO and no stated number
+		]);
+	});
+
+	it('stores the canonical url, the source and the date, and a rerun is all duplicates', async () => {
+		await ingest(fromScraper);
+		const rows = await env.DB.prepare(`SELECT url_norm, source, posted_at FROM jobs ORDER BY rowid`).all<{ url_norm: string; source: string; posted_at: string }>();
+		expect(rows.results).toEqual([
+			{ url_norm: 'https://www.linkedin.com/jobs/view/4000000001', source: 'linkedin', posted_at: '2026-10-27T00:00:00.000Z' },
+			{ url_norm: 'https://www.linkedin.com/jobs/view/4000000004', source: 'linkedin', posted_at: '2026-10-28T00:00:00.000Z' },
+		]);
+
+		calls.length = 0;
+		const again = await ingest(fromScraper);
+		expect(again.queued).toBe(0);
+		expect(calls).toHaveLength(0);
+	});
+
+	it('sees the same posting under a different tracking url as a duplicate', async () => {
+		await ingest(fromScraper);
+		const body = await ingest([{ ...fromScraper[0], url: 'https://in.linkedin.com/jobs/view/ai-engineer-at-acme-4000000001?refId=zzz&trackingId=qqq' }]);
+		expect(body).toMatchObject({ queued: 0, duplicate: 1 });
+	});
+});

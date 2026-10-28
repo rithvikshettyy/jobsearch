@@ -55,6 +55,13 @@ export function normalizeUrl(raw: string): string | null {
 	const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
 	if (host === '') return null;
 
+	// A LinkedIn posting is identified by its number alone. The slug, the country subdomain (in.linkedin.com)
+	// and every query parameter (trackingId, refId, position, currentJobId) change per visit and per search.
+	if (host === 'linkedin.com' || host.endsWith('.linkedin.com')) {
+		const posting = /^\/jobs\/view\/(?:[^/]*-)?(\d{6,})\/?$/.exec(parsed.pathname);
+		if (posting?.[1] !== undefined) return `https://www.linkedin.com/jobs/view/${posting[1]}`;
+	}
+
 	const kept = [...parsed.searchParams.entries()].filter(([name]) => !isTracking(name)).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 	const query = kept.length > 0 ? `?${new URLSearchParams(kept).toString()}` : '';
 	const path = parsed.pathname.replace(/\/+$/, '');

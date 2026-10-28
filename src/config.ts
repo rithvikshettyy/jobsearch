@@ -64,6 +64,12 @@ export const FILTERS: FilterConfig = {
 		// LLM engineer.
 		'llm engineer',
 		'software engineer llm',
+		// Internships named by the field, not by "engineer": "AI Intern", "Machine Learning Intern".
+		// They still need a PPO in the description to get past the intern gate.
+		'ai intern',
+		'ml intern',
+		'machine learning intern',
+		'llm intern',
 	],
 	// 'strategist' and 'researcher' because "forward deployed" also appears in Palantir's
 	// "Deployment Strategist - Germany Forward Deployed" and "Forward Deployed Researcher".

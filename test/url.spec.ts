@@ -28,3 +28,23 @@ describe('normalizeUrl', () => {
 		}
 	});
 });
+
+describe('normalizeUrl for LinkedIn postings', () => {
+	it('reduces every spelling of one posting to its number', () => {
+		const canonical = 'https://www.linkedin.com/jobs/view/4000000001';
+		for (const raw of [
+			'https://in.linkedin.com/jobs/view/ai-engineer-at-acme-4000000001?refId=abc&trackingId=xyz&position=3',
+			'https://www.linkedin.com/jobs/view/4000000001/?trackingId=other&currentJobId=4000000001',
+			'http://linkedin.com/jobs/view/4000000001',
+			'https://uk.linkedin.com/jobs/view/senior-thing-4000000001/',
+		]) {
+			expect(normalizeUrl(raw), raw).toBe(canonical);
+		}
+	});
+
+	it('leaves other LinkedIn pages and other sites alone', () => {
+		expect(normalizeUrl('https://www.linkedin.com/company/acme?trk=public_jobs')).toBe('https://linkedin.com/company/acme');
+		expect(normalizeUrl('https://notlinkedin.com/jobs/view/4000000001')).toBe('https://notlinkedin.com/jobs/view/4000000001');
+		expect(normalizeUrl('https://www.linkedin.com/jobs/view/123')).toBe('https://linkedin.com/jobs/view/123');
+	});
+});

@@ -191,3 +191,18 @@ class CompanyFromASentence(unittest.TestCase):
 
     def test_an_aggregator_link_page_is_not_the_company(self):
         self.assertEqual(company_from_url("https://joborbit.live/job/4305"), "Unknown")
+
+
+class LinkedInPostings(unittest.TestCase):
+    def test_every_spelling_of_one_posting_becomes_its_number(self):
+        canonical = "https://www.linkedin.com/jobs/view/4000000001"
+        for raw in (
+            "https://in.linkedin.com/jobs/view/ai-engineer-at-acme-4000000001?refId=abc&trackingId=xyz&position=3",
+            "https://www.linkedin.com/jobs/view/4000000001/?trackingId=other",
+            "http://linkedin.com/jobs/view/4000000001",
+        ):
+            self.assertEqual(strip_tracking(raw), canonical, raw)
+
+    def test_other_pages_and_other_hosts_are_untouched(self):
+        self.assertEqual(strip_tracking("https://www.linkedin.com/company/acme?trk=x"), "https://linkedin.com/company/acme")
+        self.assertEqual(strip_tracking("https://notlinkedin.com/jobs/view/4000000001"), "https://notlinkedin.com/jobs/view/4000000001")

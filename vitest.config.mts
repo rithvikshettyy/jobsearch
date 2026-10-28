@@ -6,8 +6,8 @@ const migrations = await readD1Migrations("./migrations");
 
 export default defineWorkersConfig({
 	test: {
-		// x-scraper is a Python project with its own virtualenv; vitest has no business scanning it.
-		exclude: ["**/node_modules/**", "**/dist/**", "x-scraper/**"],
+		// x-scraper and linkedin-scraper are Python projects with their own virtualenvs; vitest has no business scanning them.
+		exclude: ["**/node_modules/**", "**/dist/**", "x-scraper/**", "linkedin-scraper/**"],
 		setupFiles: ["./test/apply-migrations.ts"],
 		poolOptions: {
 			workers: {
