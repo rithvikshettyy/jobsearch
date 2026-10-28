@@ -98,9 +98,8 @@ export function passesDetailFilters(job: JobDetail, config: FilterConfig): boole
 const SENIORITY_DENY = [
 	'senior',
 	'sr.',
-	// 'staff' deliberately absent: the search asks for staff engineer titles.
-	// The YOE gate still filters them, since most staff reqs name a floor well
-	// above `yoeOk`'s default of 2.
+	// 'staff' is not listed here because HARD_EXCLUDE_STRICT below drops it first,
+	// and an L1 band must never waive it.
 	'principal',
 	'distinguished',
 	'lead',
