@@ -21,3 +21,9 @@ SEND_UNKNOWN_YOE=false
 # Part 2: Telegram approval queue. Real values via `npx wrangler secret put`, see SETUP.md.
 INGEST_KEY=local-dev-ingest-key
 TG_WEBHOOK_SECRET=local-dev-webhook-secret
+
+# The chat or group the bot posts to. A group id is negative. In production this is
+# `npx wrangler secret put TELEGRAM_CHAT_ID`, it is not kept in wrangler.jsonc.
+TELEGRAM_CHAT_ID=-1001234567890
+# Optional: your numeric Telegram user id. Needed in a group so only you can tap the buttons.
+# TELEGRAM_OWNER_USER_ID=

@@ -20,6 +20,7 @@ Both are random strings. PowerShell generates one:
 ```
 npx wrangler secret put INGEST_KEY          # guards /ingest, /queue, /jobs/:id/status
 npx wrangler secret put TG_WEBHOOK_SECRET   # Telegram echoes it back on every webhook call
+npx wrangler secret put TELEGRAM_CHAT_ID    # the chat or group the bot posts to (a group id is negative)
 ```
 
 `TG_WEBHOOK_SECRET` may only contain `A-Z a-z 0-9 _ -` (Telegram's rule). Keep a copy of both in a password

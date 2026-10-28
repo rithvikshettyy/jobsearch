@@ -132,8 +132,8 @@ npm run dev
 ```
 
 Create a bot with [@BotFather](https://t.me/botfather), add it to your chat, and put
-the chat id in `TELEGRAM_CHAT_ID` in `wrangler.jsonc` (it is not a secret — a chat id
-is useless without the token).
+the chat id in `TELEGRAM_CHAT_ID`. In production set it with `npx wrangler secret put
+TELEGRAM_CHAT_ID` so it is never committed; locally it goes in `.dev.vars`.
 
 Seed the company list, which is resolved locally and never in the Worker:
 

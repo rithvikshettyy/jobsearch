@@ -11,7 +11,8 @@ export default defineWorkersConfig({
 			workers: {
 				wrangler: { configPath: "./wrangler.jsonc" },
 				miniflare: {
-					bindings: { TEST_MIGRATIONS: migrations },
+					// TELEGRAM_CHAT_ID is a secret in production, so tests get a dummy one.
+					bindings: { TEST_MIGRATIONS: migrations, TELEGRAM_CHAT_ID: "-1001234567890" },
 				},
 			},
 		},
