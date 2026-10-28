@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dedupeKey, normalizeTitle } from '../src/dedupe';
+import { collapseByFuzzy, dedupeKey, fuzzyKey, mergeLocations, normalizeTitle } from '../src/dedupe';
 
 describe('normalizeTitle', () => {
 	it('lowercases and collapses whitespace', () => {
@@ -41,5 +41,37 @@ describe('dedupeKey', () => {
 		const a = await dedupeKey('Acme', 'Software Engineer', 'Bengaluru');
 		const b = await dedupeKey('Acme', 'Software Engineer', 'Berlin');
 		expect(a).not.toBe(b);
+	});
+});
+
+describe('fuzzyKey', () => {
+	it('ignores location and company casing', async () => {
+		expect(await fuzzyKey('Datadog', 'Software Engineer')).toBe(await fuzzyKey(' datadog ', 'software engineer (Remote)'));
+	});
+
+	it('still separates different roles and companies', async () => {
+		expect(await fuzzyKey('Datadog', 'Software Engineer')).not.toBe(await fuzzyKey('Datadog', 'Data Engineer'));
+		expect(await fuzzyKey('Datadog', 'Software Engineer')).not.toBe(await fuzzyKey('Stripe', 'Software Engineer'));
+	});
+});
+
+describe('mergeLocations', () => {
+	it('unions case-insensitively in first-seen order', () => {
+		expect(mergeLocations('Bengaluru, India', 'pune; bengaluru, india')).toBe('Bengaluru, India; pune');
+	});
+});
+
+describe('collapseByFuzzy', () => {
+	it('keeps the first of a same-role group and merges its locations', () => {
+		const items = [
+			{ fuzzy: 'a', job: { location: 'Bengaluru, India' } },
+			{ fuzzy: 'b', job: { location: 'Pune' } },
+			{ fuzzy: 'a', job: { location: 'Mumbai, India' } },
+		];
+		const { kept, merged } = collapseByFuzzy(items);
+		expect(merged).toBe(1);
+		expect(kept.map((item) => item.job.location)).toEqual(['Bengaluru, India; Mumbai, India', 'Pune']);
+		// The input is not mutated.
+		expect(items[0]?.job.location).toBe('Bengaluru, India');
 	});
 });

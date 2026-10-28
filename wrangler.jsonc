@@ -16,8 +16,8 @@
 	"upload_source_maps": true,
 	"triggers": {
 		// Cron triggers do not retry. Each tick polls COMPANIES_PER_TICK companies
-		// and advances the cursor, so the full board list rotates over several ticks.
-		// */2 is a burn-in cadence: 14 active companies rotate in ~4 minutes. Move
+		// (least-recently-polled first), so the full board list rotates over several ticks.
+		// */2 is a burn-in cadence: 3 boards per tick, 64 boards rotate in ~43 minutes. Move
 		// back to */15 once the deploy is proven — ATS boards do not update faster
 		// than hourly, so the extra ticks buy freshness that does not exist.
 		"crons": ["*/2 * * * *"]
@@ -38,7 +38,10 @@
 		//
 		// NOTE: if Telegram ever upgrades this group to a supergroup, the id
 		// changes to a -100... form and sends start failing with "chat not found".
-		"TELEGRAM_CHAT_ID": "-5552339802"
+		"TELEGRAM_CHAT_ID": "-5552339802",
+		// A JD that names no experience number is NOT sent. "true" sends it only
+		// when the title reads entry-level (intern, fresher, junior, SDE 1 ...).
+		"SEND_UNKNOWN_YOE": "false"
 	}
 	// Secrets (never in this file):
 	//   npx wrangler secret put TELEGRAM_BOT_TOKEN

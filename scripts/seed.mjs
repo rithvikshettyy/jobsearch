@@ -3,6 +3,7 @@
 //
 //   node scripts/seed.mjs            # seed the local D1
 //   node scripts/seed.mjs --remote   # seed the deployed D1
+//   node scripts/seed.mjs --prune    # ALSO deactivate every company not in companies.json
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -10,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const remote = process.argv.includes('--remote');
+const prune = process.argv.includes('--prune');
 
 const VALID_SOURCES = new Set(['greenhouse', 'lever', 'ashby']);
 const quote = (value) => `'${String(value).replace(/'/g, "''")}'`;
@@ -31,10 +33,14 @@ const statements = companies.map((company, index) => {
 	);
 });
 
-// Anything no longer in companies.json is deactivated rather than deleted, so
-// its seen_postings / jobs history survives a board slug being retired.
-const keep = companies.map((company) => quote(company.name)).join(', ');
-statements.push(`UPDATE companies SET active = 0 WHERE name NOT IN (${keep});`);
+// Deactivation is opt-in. It used to run on every seed and silently switched off
+// every board that came from `npm run resolve` (seed.sql) but was not listed in
+// companies.json, which shrank the live pool to the 14 names in this file.
+// History survives either way: rows are deactivated, never deleted.
+if (prune) {
+	const keep = companies.map((company) => quote(company.name)).join(', ');
+	statements.push(`UPDATE companies SET active = 0 WHERE name NOT IN (${keep});`);
+}
 
 const sqlPath = join(here, '.seed.generated.sql');
 writeFileSync(sqlPath, `${statements.join('\n')}\n`, 'utf8');

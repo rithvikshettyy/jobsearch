@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { geoOk, minYoe, roleOk, yoeOk, type FilterConfig } from './filters';
+import { eligibleLocations, geoOk, isInternTitle, mentionsPpo, minYoe, roleOk, splitLocations, titleBoost, yoeOk, yoeVerdict, type FilterConfig } from './filters';
 
 const config: Pick<FilterConfig, 'titleAllow' | 'titleDeny'> = {
 	titleAllow: ['software engineer', 'backend', 'frontend'],
@@ -86,14 +86,65 @@ describe('roleOk', () => {
 	});
 
 	it('rejects the rest of the seniority ladder', () => {
-		for (const title of ['Sr. Software Engineer', 'Engineering Manager', 'Head of Platform', 'Backend Intern']) {
+		for (const title of ['Sr. Software Engineer', 'Engineering Manager', 'Head of Platform']) {
 			expect(roleOk(title), title).toBe(false);
 		}
 	});
 
-	it('accepts a staff title — the search asks for it, and the YOE gate is what filters it', () => {
-		expect(roleOk('Staff Engineer')).toBe(true);
-		expect(roleOk('Staff Software Engineer', config)).toBe(true);
+	it('hard-excludes staff, whatever the allowlist says', () => {
+		expect(roleOk('Staff Engineer')).toBe(false);
+		expect(roleOk('Staff Software Engineer', config)).toBe(false);
+		expect(roleOk('Staff Software Engineer - Frontend', config)).toBe(false);
+	});
+
+	it('hard-excludes every level marker, case-insensitively', () => {
+		for (const title of [
+			'SENIOR Backend Engineer',
+			'Sr Backend Engineer',
+			'Sr. Backend Engineer',
+			'Principal Software Engineer',
+			'Tech Lead, Backend',
+			'Engineering Manager',
+			'Director of Engineering',
+			'Head of Engineering',
+			'Solutions Architect',
+			'Software Engineer II',
+			'Software Engineer III',
+			'Software Engineer IV',
+			'Software Engineer L4',
+			'Software Engineer L5',
+			'SDE 2',
+			'SDE2',
+			'SDE-3',
+			'Software Engineer 3 - Enterprise Architecture',
+			'Engineer 4',
+			'Intermediate Backend Engineer, India',
+		]) {
+			expect(roleOk(title), title).toBe(false);
+			expect(roleOk(title, config), title).toBe(false);
+		}
+	});
+
+	it('uses word boundaries, so near-misses survive', () => {
+		for (const title of ['Backend Engineer, SRE Tooling', 'Software Engineer I', 'Leadership Program Graduate Engineer', 'Headless CMS Developer', 'Engineer 20 Series Support', 'Engineer, Platform']) {
+			expect(roleOk(title), title).toBe(true);
+		}
+	});
+
+	it('does not let an L1 band waive a strict level marker', () => {
+		expect(roleOk('Software Engineer II L1')).toBe(false);
+		expect(roleOk('Staff Engineer L1')).toBe(false);
+	});
+
+	it('now accepts interns, they are on the include list', () => {
+		expect(roleOk('Backend Intern')).toBe(true);
+		expect(roleOk('Software Engineering Intern', config)).toBe(true);
+	});
+
+	it('boosts an entry-level title past the allowlist, but only for technical roles', () => {
+		expect(roleOk('Graduate Engineer Trainee', config)).toBe(true);
+		expect(roleOk('Associate Developer', config)).toBe(true);
+		expect(roleOk('Industrial Trainee - Controllership', config)).toBe(false);
 	});
 
 	it('accepts an entry-level title', () => {
@@ -151,9 +202,11 @@ describe('geoOk', () => {
 		expect(geoOk('US-only role')).toBe(false);
 	});
 
-	it('accepts unrestricted remote', () => {
+	it('rejects a bare Remote unless allowBareRemote is on', () => {
 		expect(geoOk('Remote')).toBe(true);
-		expect(geoOk('Remote', geoConfig)).toBe(true);
+		expect(geoOk('Remote', geoConfig)).toBe(false);
+		expect(geoOk('Remote', { ...geoConfig, allowBareRemote: true })).toBe(true);
+		expect(geoOk('Remote - Portugal', { ...geoConfig, allowBareRemote: true })).toBe(false);
 	});
 
 	it('applies the location allowlist only when one is given', () => {
@@ -174,8 +227,8 @@ describe('geoOk', () => {
 		}
 	});
 
-	it('keeps remote when it is unqualified or names an in-scope location', () => {
-		for (const location of ['Remote', 'Anywhere', 'Worldwide, Remote', 'Remote - India', 'Bengaluru, India (Remote)']) {
+	it('keeps remote that names India, APAC, worldwide or anywhere', () => {
+		for (const location of ['Anywhere', 'Worldwide, Remote', 'Remote - India', 'Remote - APAC', 'Bengaluru, India (Remote)']) {
 			expect(geoOk(location, geoConfig), location).toBe(true);
 		}
 	});
@@ -183,5 +236,140 @@ describe('geoOk', () => {
 	it('does not apply the region rule to a description', () => {
 		// A JD mentioning other offices in passing is not a geo restriction.
 		expect(geoOk('We have offices in Germany and Singapore. This role is remote.')).toBe(true);
+	});
+});
+
+describe('multi-location postings', () => {
+	const india = {
+		locationAllow: ['india', 'bengaluru', 'bangalore', 'mumbai', 'pune', 'delhi', 'ncr', 'gurugram', 'noida', 'thane', 'navi mumbai'],
+		allowRemote: true,
+	};
+
+	it('splits on ; | and newlines but not on commas', () => {
+		expect(splitLocations('Bengaluru, India; Lisbon, Portugal')).toEqual(['Bengaluru, India', 'Lisbon, Portugal']);
+		expect(splitLocations('Pune | Remote - APAC')).toEqual(['Pune', 'Remote - APAC']);
+	});
+
+	it('passes on any one eligible place and keeps only that one', () => {
+		expect(eligibleLocations('Paris, France; Bengaluru, India; Remote, Portugal', india)).toEqual(['Bengaluru, India']);
+	});
+
+	it('rejects a list with no eligible place', () => {
+		expect(geoOk('Portugal, Remote; France, Remote; Germany, Remote', india)).toBe(false);
+		expect(geoOk('US-Remote, Chicago', india)).toBe(false);
+		expect(geoOk('Chicago, Illinois, USA', india)).toBe(false);
+	});
+
+	it('matches whole tokens, so Indiana is not India', () => {
+		expect(geoOk('Indianapolis, Indiana, USA', india)).toBe(false);
+		expect(geoOk('Pune', india)).toBe(true);
+		expect(geoOk('Delhi NCR', india)).toBe(true);
+		expect(geoOk('Navi Mumbai, Maharashtra', india)).toBe(true);
+	});
+
+	it('still rejects a work-authorization clause across the whole string', () => {
+		expect(eligibleLocations('Bengaluru, India (must be a US citizen)', india)).toEqual([]);
+	});
+});
+
+describe('titleBoost', () => {
+	it('reads entry-level titles', () => {
+		for (const title of [
+			'Software Engineering Intern',
+			'Fresher - Backend',
+			'New Grad Engineer',
+			'Junior Developer',
+			'Jr. SDE',
+			'SDE 1',
+			'Software Engineer I',
+			'Associate Engineer',
+			'Graduate Trainee',
+		]) {
+			expect(titleBoost(title), title).toBe(true);
+		}
+	});
+
+	it('does not boost a plain or senior title', () => {
+		for (const title of ['Software Engineer', 'Software Engineer II', 'Staff Engineer']) {
+			expect(titleBoost(title), title).toBe(false);
+		}
+	});
+});
+
+describe('yoeVerdict', () => {
+	it('separates unknown from rejected', () => {
+		expect(yoeVerdict('0-1 years')).toBe('ok');
+		expect(yoeVerdict('5+ years')).toBe('reject');
+		expect(yoeVerdict('Great team, great snacks.')).toBe('unknown');
+	});
+});
+
+describe('role search: FDE, AI, ML, LLM engineer', () => {
+	const search = {
+		titleAllow: ['forward deployed', 'fde', 'ai engineer', 'ai ml engineer', 'ml engineer', 'machine learning engineer', 'software engineer ml', 'llm engineer'],
+		titleDeny: ['senior', 'lead', 'manager'],
+		entryBoostAllow: false,
+	};
+
+	it('accepts the four roles and their common spellings', () => {
+		for (const title of ['Forward Deployed Engineer', 'Forward Deployed AI Engineer', 'FDE, AI', 'AI Engineer', 'Applied AI Engineer', 'AI/ML Engineer', 'ML Engineer', 'Machine Learning Engineer', 'Software Engineer, ML', 'LLM Engineer']) {
+			expect(roleOk(title, search), title).toBe(true);
+		}
+	});
+
+	it('rejects other engineering roles, and entry wording no longer rescues them', () => {
+		for (const title of ['Backend Engineer', 'Software Engineering Intern', 'Associate Developer', 'Graduate Engineer Trainee', 'Data Analyst']) {
+			expect(roleOk(title, search), title).toBe(false);
+		}
+	});
+
+	it('still hard-excludes senior levels', () => {
+		expect(roleOk('Senior AI Engineer', search)).toBe(false);
+		expect(roleOk('Staff ML Engineer', search)).toBe(false);
+		expect(roleOk('AI Engineer II', search)).toBe(false);
+	});
+
+	it('keeps the entry boost when the flag is not set', () => {
+		expect(roleOk('Associate Developer', { titleAllow: ['ml engineer'], titleDeny: [] })).toBe(true);
+	});
+});
+
+describe('allowInternational', () => {
+	const open = { locationAllow: ['india'], allowRemote: true, allowBareRemote: true, allowInternational: true };
+
+	it('accepts any country, remote or on-site', () => {
+		for (const place of ['Berlin, Germany', 'Remote - Portugal', 'Remote', 'Singapore', 'Toronto, Canada']) {
+			expect(geoOk(place, open), place).toBe(true);
+		}
+	});
+
+	it('still rejects US-only clauses and work-authorization clauses', () => {
+		expect(geoOk('Remote (US only)', open)).toBe(false);
+		expect(geoOk('Berlin, Germany (must be a US citizen)', open)).toBe(false);
+	});
+
+	it('drops only the US-only place of a multi-place posting', () => {
+		expect(eligibleLocations('Bengaluru, India; Remote (US only)', open)).toEqual(['Bengaluru, India']);
+	});
+
+	it('is off by default', () => {
+		expect(geoOk('Berlin, Germany', { locationAllow: ['india'], allowRemote: true })).toBe(false);
+	});
+});
+
+describe('intern and PPO detection', () => {
+	it('reads internship titles but not Internal', () => {
+		expect(isInternTitle('AI Engineer Intern')).toBe(true);
+		expect(isInternTitle('Machine Learning Internship')).toBe(true);
+		expect(isInternTitle('Internal Tools Engineer')).toBe(false);
+		expect(isInternTitle('AI Engineer')).toBe(false);
+	});
+
+	it('finds PPO and conversion wording', () => {
+		for (const text of ['6 month internship with PPO', 'Pre-placement offer for top performers', 'Possibility of full-time conversion', 'Interns may convert to full time', 'Strong performers get a return offer', 'convertible to a permanent role']) {
+			expect(mentionsPpo(text), text).toBe(true);
+		}
+		expect(mentionsPpo('Unpaid 3 month internship, certificate provided')).toBe(false);
+		expect(mentionsPpo('We will happen to offer snacks')).toBe(false);
 	});
 });

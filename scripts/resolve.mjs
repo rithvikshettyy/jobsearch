@@ -5,6 +5,9 @@
 //   node scripts/resolve.mjs --out other.sql  # write somewhere else
 //   node scripts/resolve.mjs --fresh          # ignore the probe cache
 //   node scripts/resolve.mjs --prune          # also deactivate companies not listed
+//   node scripts/resolve.mjs --no-verify-pins # trust `Name = ats:slug` lines without probing them
+//
+// Also run as `npm run discover-slugs`. Probes Greenhouse, Lever, Ashby and SmartRecruiters.
 //
 // Input is one company name per line. `#` starts a comment, blank lines are
 // skipped, and a line may pin the answer to skip probing entirely:
@@ -30,6 +33,7 @@ const OUTPUT = resolvePath(root, option('--out', 'seed.sql'));
 const CACHE = join(here, '.resolve-cache.json');
 const FRESH = flag('--fresh');
 const PRUNE = flag('--prune');
+const NO_VERIFY_PINS = flag('--no-verify-pins');
 
 /** Board endpoints, same ones src/sources/ polls. Light payloads only. */
 const ATS = [
@@ -48,6 +52,13 @@ const ATS = [
 		id: 'ashby',
 		url: (slug) => `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(slug)}`,
 		count: (payload) => (payload && Array.isArray(payload.jobs) ? payload.jobs.length : null),
+	},
+	{
+		id: 'smartrecruiters',
+		url: (slug) => `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings?limit=1`,
+		// An unknown company answers 200 with totalFound 0 instead of a 404, so zero means "no usable
+		// board" here (the Worker treats an empty first page the same way).
+		count: (payload) => (payload && typeof payload.totalFound === 'number' && payload.totalFound > 0 ? payload.totalFound : null),
 	},
 ];
 
@@ -79,7 +90,7 @@ function readNames(path) {
 		const text = line.replace(/#.*$/, '').trim();
 		if (text === '') return;
 
-		const pinned = text.match(/^(.*?)\s*=\s*(greenhouse|lever|ashby)\s*:\s*(\S+)$/i);
+		const pinned = text.match(/^(.*?)\s*=\s*(greenhouse|lever|ashby|smartrecruiters)\s*:\s*(\S+)$/i);
 		const name = (pinned ? pinned[1] : text).trim();
 		if (name === '') throw new Error(`${path}:${index + 1}: pin without a company name`);
 
@@ -282,8 +293,18 @@ console.log(`resolving ${entries.length} companies from ${INPUT}`);
 
 const results = await mapLimited(entries, CONCURRENCY, async (entry) => {
 	if (entry.pin !== null) {
-		console.log(`  ${entry.name} -> ${entry.pin.source}:${entry.pin.board} (pinned)`);
-		return { name: entry.name, resolved: { ...entry.pin, jobs: -1 }, alternates: [] };
+		if (NO_VERIFY_PINS) {
+			console.log(`  ${entry.name} -> ${entry.pin.source}:${entry.pin.board} (pinned, not verified)`);
+			return { name: entry.name, resolved: { ...entry.pin, jobs: -1 }, alternates: [] };
+		}
+		// A pin used to skip probing, so a typo or a retired board went into the seed unnoticed.
+		const jobs = await probe(ATS.find((ats) => ats.id === entry.pin.source), entry.pin.board);
+		if (jobs === null) {
+			console.log(`  ${entry.name} -> PIN DEAD ${entry.pin.source}:${entry.pin.board}`);
+			return { name: entry.name, resolved: null, alternates: [] };
+		}
+		console.log(`  ${entry.name} -> ${entry.pin.source}:${entry.pin.board} (pinned, ${jobs} open)`);
+		return { name: entry.name, resolved: { ...entry.pin, jobs }, alternates: [] };
 	}
 
 	const result = await resolveCompany(entry.name);

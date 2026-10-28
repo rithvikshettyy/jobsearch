@@ -1,15 +1,41 @@
-import { COMPANIES_PER_TICK, FILTERS, JOBS_PER_MESSAGE, MAX_CONCURRENCY, MAX_DETAILS_PER_TICK, SUBREQUEST_CAP } from './config';
+import {
+	COMPANIES_PER_TICK,
+	DEDUPE_WINDOW_DAYS,
+	FILTERS,
+	MAX_CONCURRENCY,
+	MAX_DETAILS_PER_TICK,
+	SEND_UNKNOWN_YOE,
+	SOURCE_RUNS_KEEP_DAYS,
+	SUBREQUEST_CAP,
+} from './config';
 import { markSeen, readSeenIds } from './db';
-import { dedupeKey } from './dedupe';
-import { geoOk, isFresh, minYoe, passesDetailFilters, roleOk, yoeOk } from './filters';
+import { collapseByFuzzy, dedupeKey, fuzzyKey, mergeLocations } from './dedupe';
 import { createLimiter, SubrequestBudget } from './limit';
-import { groupJobs, sendBatch, type NotifyJob } from './notify';
+import { handleIngest } from './ingest';
+import { pushOutbox } from './outbox';
+import { handleJobStatus, handleQueue } from './queue';
+import { handleTelegramWebhook } from './webhook';
+import { handleXAlert, handleXState, handleXStateWrite } from './x';
+import { detailGate, lightGate } from './pipeline';
 import { getSource } from './sources';
-import { existingHashes, getShard, insertJobs, logError, markNotified, unnotified, type PendingJob } from './store';
+import {
+	addSources,
+	classifyError,
+	emptyCounts,
+	existingHashes,
+	finishTickRun,
+	getShard,
+	insertJobs,
+	logError,
+	pruneSourceRuns,
+	recentByFuzzy,
+	startTickRun,
+	updateLocations,
+	type CompanyRun,
+	type PendingJob,
+	type RunCounts,
+} from './store';
 import type { Company, Env, Job, TickResult } from './types';
-
-/** Rows pulled from the outbox in one tick, on top of whatever this tick found. */
-const MAX_NOTIFY_PER_TICK = 20;
 
 function describe(error: unknown): string {
 	return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
@@ -29,17 +55,37 @@ function createReserve(total: number): (wanted: number) => number {
 	};
 }
 
+/** Subrequest counter scoped to one company, backed by the shared tick budget. */
+function scopedBudget(budget: SubrequestBudget): { take(n?: number): boolean; readonly used: number } {
+	let used = 0;
+	return {
+		take(n = 1): boolean {
+			const ok = budget.take(n);
+			if (ok) used += n;
+			return ok;
+		},
+		get used(): number {
+			return used;
+		},
+	};
+}
+
+type CompanyBudget = ReturnType<typeof scopedBudget>;
+
 /**
  * Phase 1 for one company: one light request, ids diffed against `seen_postings`.
  * Never fetches a description body — that is what keeps the poll path inside the
  * subrequest cap.
  */
-async function pollCompany(env: Env, company: Company, budget: SubrequestBudget): Promise<Job[]> {
+async function pollCompany(env: Env, company: Company, budget: CompanyBudget, counts: RunCounts): Promise<Job[]> {
 	if (!budget.take(1)) return [];
 	const jobs = await getSource(company.source).fetchJobs(company, env);
+	counts.fetched = jobs.length;
 
 	const seen = await readSeenIds(env, company.id);
-	return jobs.filter((job) => !seen.has(job.externalId));
+	const unseen = jobs.filter((job) => !seen.has(job.externalId));
+	counts.newIds = unseen.length;
+	return unseen;
 }
 
 /**
@@ -54,27 +100,27 @@ async function detailCompany(
 	env: Env,
 	company: Company,
 	unseen: Job[],
-	budget: SubrequestBudget,
+	budget: CompanyBudget,
 	reserve: (wanted: number) => number,
 	now: number,
 	nowIso: string,
-): Promise<{ pending: PendingJob[]; detailed: number }> {
-	const shortlist: Job[] = [];
-	const rejected: string[] = [];
-	for (const job of unseen) {
-		const light = roleOk(job.title, FILTERS) && geoOk(job.location, FILTERS) && isFresh(job.postedAt, FILTERS, now);
-		if (light) shortlist.push(job);
-		else rejected.push(job.externalId);
-	}
-	await markSeen(env, company.id, rejected, nowIso);
-	if (shortlist.length === 0) return { pending: [], detailed: 0 };
+	counts: RunCounts,
+	sendUnknownYoe: boolean,
+): Promise<PendingJob[]> {
+	const light = lightGate(unseen, FILTERS, now);
+	counts.passedTitle = light.counts.title;
+	counts.passedLocation = light.counts.location;
+	counts.passedFresh = light.counts.fresh;
+	await markSeen(env, company.id, light.rejected, nowIso);
+	if (light.shortlist.length === 0) return [];
 
 	const source = getSource(company.source);
-	const batch = shortlist.slice(0, reserve(shortlist.length));
-	if (batch.length === 0) return { pending: [], detailed: 0 };
-	if (!budget.take(source.detailCost(batch.length))) return { pending: [], detailed: 0 };
+	const batch = light.shortlist.slice(0, reserve(light.shortlist.length));
+	if (batch.length === 0) return [];
+	if (!budget.take(source.detailCost(batch.length))) return [];
 
 	const details = await source.fetchDetails(company, batch, env);
+	counts.detailed = batch.length;
 	await markSeen(
 		env,
 		company.id,
@@ -84,51 +130,59 @@ async function detailCompany(
 
 	const pending: PendingJob[] = [];
 	for (const detail of details) {
-		// Work-authorization and geo clauses live in the JD, not the location
-		// field, so the geo gate runs a second time over the description.
-		if (!passesDetailFilters(detail, FILTERS)) continue;
-		if (!geoOk(detail.description)) continue;
-		if (!yoeOk(detail.description)) continue;
+		const outcome = detailGate(detail, FILTERS, { sendUnknownYoe });
+		if (!outcome.ok) {
+			// A YOE rejection passed the description gate, so it still counts there.
+			if (outcome.reason !== 'description') counts.passedDescription += 1;
+			if (outcome.reason === 'unknown_yoe') counts.unknownYoeBlocked += 1;
+			continue;
+		}
+		counts.passedDescription += 1;
+		counts.passedYoe += 1;
 
 		pending.push({
 			hash: await dedupeKey(detail.company, detail.title, detail.location),
+			fuzzy: await fuzzyKey(detail.company, detail.title),
 			companyId: company.id,
-			job: { ...detail, yoeMin: detail.yoeMin ?? minYoe(detail.description) },
+			job: { ...detail, yoeMin: outcome.yoeMin },
+			source: company.source,
 		});
 	}
 
-	return { pending, detailed: batch.length };
+	return pending;
 }
 
 /**
- * Drain the outbox. One subrequest per message group, and a row flips to
- * notified only once Telegram has accepted it — a failed group stays at
- * `notified = 0` for the next tick.
+ * Fold pending jobs into the queue: collapse same-role duplicates inside this
+ * run, then merge anything already queued in the last DEDUPE_WINDOW_DAYS into
+ * the existing row instead of inserting it again.
  */
-async function pushOutbox(env: Env, budget: SubrequestBudget): Promise<{ notified: number; errors: number }> {
-	const capacity = Math.min(MAX_NOTIFY_PER_TICK, budget.left * JOBS_PER_MESSAGE);
-	if (capacity <= 0) return { notified: 0, errors: 0 };
+async function dedupePending(env: Env, pending: PendingJob[], now: number): Promise<PendingJob[]> {
+	const collapsed = collapseByFuzzy(pending);
+	const since = new Date(now - DEDUPE_WINDOW_DAYS * 86_400_000).toISOString();
+	const recent = await recentByFuzzy(
+		env,
+		collapsed.kept.map((item) => item.fuzzy),
+		since,
+	);
 
-	const rows = await unnotified(env, capacity);
-	if (rows.length === 0) return { notified: 0, errors: 0 };
-
-	const entries: NotifyJob[] = rows.map((row) => ({ hash: row.hash, job: row.job, yoeMin: row.yoeMin }));
-	let notified = 0;
-	let errors = 0;
-
-	for (const group of groupJobs(entries, JOBS_PER_MESSAGE)) {
-		if (!budget.take(1)) break;
-		// The group is already inside both caps, so this is exactly one message.
-		const result = await sendBatch(env, group, JOBS_PER_MESSAGE);
-		await markNotified(env, result.sent);
-		notified += result.sent.length;
-		if (result.failed.length > 0) {
-			errors += 1;
-			await logError(env, null, `telegram send failed for ${result.failed.length} job(s)`, 'notify');
+	const fresh: PendingJob[] = [];
+	const updates: Array<{ dedupeKey: string; locations: string }> = [];
+	const sightings: Array<{ dedupeKey: string; source: string }> = [];
+	for (const item of collapsed.kept) {
+		const match = recent.get(item.fuzzy);
+		if (match === undefined) {
+			fresh.push(item);
+			continue;
 		}
+		const merged = mergeLocations(match.locations, item.job.location);
+		if (merged !== match.locations) updates.push({ dedupeKey: match.dedupeKey, locations: merged });
+		sightings.push({ dedupeKey: match.dedupeKey, source: item.source });
 	}
+	await updateLocations(env, updates);
+	await addSources(env, sightings);
 
-	return { notified, errors };
+	return fresh;
 }
 
 /**
@@ -137,6 +191,10 @@ async function pushOutbox(env: Env, budget: SubrequestBudget): Promise<{ notifie
  * Every per-company call is wrapped — a cron trigger gets no retry, so one bad
  * board must not sink the rest of the shard, and the failure goes to `errors`
  * rather than to a console nobody reads.
+ *
+ * Telemetry: a tick row is opened before any polling and closed at the end, with
+ * one `source_runs` row per company in between. An unclosed tick row is a tick
+ * that was killed (CPU limit), which no handler can observe.
  */
 export async function runTick(env: Env): Promise<TickResult> {
 	const budget = new SubrequestBudget(SUBREQUEST_CAP);
@@ -144,48 +202,84 @@ export async function runTick(env: Env): Promise<TickResult> {
 	const limit = createLimiter(MAX_CONCURRENCY);
 	const now = Date.now();
 	const nowIso = new Date(now).toISOString();
+	const runId = crypto.randomUUID();
+	const sendUnknownYoe = env.SEND_UNKNOWN_YOE === undefined ? SEND_UNKNOWN_YOE : env.SEND_UNKNOWN_YOE === 'true';
 
-	// getShard advances the cursor before any polling happens: a tick that dies
+	await startTickRun(env, runId, nowIso);
+
+	// getShard stamps last_polled_at before any polling happens: a tick that dies
 	// half-way must not re-poll the same shard forever while the rest starves.
 	const companies = await getShard(env, COMPANIES_PER_TICK);
 
 	let polled = 0;
-	let newIds = 0;
-	let detailed = 0;
 	let errors = 0;
+	const runs: CompanyRun[] = [];
 	const pending: PendingJob[] = [];
 
 	await Promise.all(
 		companies.map((company) =>
 			limit(async (): Promise<void> => {
+				const counts = emptyCounts();
+				const scoped = scopedBudget(budget);
+				const startedAt = Date.now();
+				const run: CompanyRun = {
+					company,
+					counts,
+					startedAt: new Date(startedAt).toISOString(),
+					wallMs: 0,
+					subrequests: 0,
+					errorKind: null,
+					error: null,
+				};
+				// Which request failed matters: a 404 on the board means the board is gone, a 404 on one
+				// job's detail only means that posting was just taken down.
+				let phase: 'poll' | 'detail' = 'poll';
 				try {
-					const unseen = await pollCompany(env, company, budget);
+					const unseen = await pollCompany(env, company, scoped, counts);
 					polled += 1;
-					newIds += unseen.length;
-					if (unseen.length === 0) return;
-
-					const result = await detailCompany(env, company, unseen, budget, reserve, now, nowIso);
-					detailed += result.detailed;
-					pending.push(...result.pending);
+					if (unseen.length > 0) {
+						phase = 'detail';
+						pending.push(...(await detailCompany(env, company, unseen, scoped, reserve, now, nowIso, counts, sendUnknownYoe)));
+					}
 				} catch (error) {
 					errors += 1;
-					await logError(env, company.name, describe(error), 'company');
+					const message = describe(error);
+					run.error = message;
+					const kind = classifyError(message);
+					run.errorKind = kind === 'not_found' && phase === 'detail' ? 'http' : kind;
+					await logError(env, company.name, message, 'company');
+				} finally {
+					run.wallMs = Date.now() - startedAt;
+					run.subrequests = scoped.used;
+					runs.push(run);
 				}
 			}),
 		),
 	);
 
+	let deduped = 0;
+	let queued = 0;
 	try {
+		const fresh = await dedupePending(env, pending, now);
 		// `insertJobs` is INSERT OR IGNORE, so this filter only saves writes — it
 		// is not what makes the dedupe correct.
 		const known = await existingHashes(
 			env,
-			pending.map((job) => job.hash),
+			fresh.map((job) => job.hash),
 		);
-		await insertJobs(
-			env,
-			pending.filter((job) => !known.has(job.hash)),
-		);
+		const toInsert = fresh.filter((job) => !known.has(job.hash));
+		queued = await insertJobs(env, toInsert);
+		deduped = pending.length - toInsert.length;
+
+		// Attribute the dedupe outcome back to each company's funnel row.
+		const queuedBy = new Map<number, number>();
+		for (const job of toInsert) queuedBy.set(job.companyId, (queuedBy.get(job.companyId) ?? 0) + 1);
+		const pendingBy = new Map<number, number>();
+		for (const job of pending) pendingBy.set(job.companyId, (pendingBy.get(job.companyId) ?? 0) + 1);
+		for (const run of runs) {
+			run.counts.queued = queuedBy.get(run.company.id) ?? 0;
+			run.counts.deduped = (pendingBy.get(run.company.id) ?? 0) - run.counts.queued;
+		}
 	} catch (error) {
 		errors += 1;
 		await logError(env, null, describe(error), 'persist');
@@ -201,14 +295,27 @@ export async function runTick(env: Env): Promise<TickResult> {
 		await logError(env, null, describe(error), 'notify');
 	}
 
+	const funnel = emptyCounts();
+	for (const run of runs) {
+		for (const key of Object.keys(funnel) as Array<keyof RunCounts>) funnel[key] += run.counts[key];
+	}
+	funnel.deduped = deduped;
+	funnel.queued = queued;
+
+	await finishTickRun(env, runId, { counts: funnel, sent: notified, errors, subrequests: budget.spent, wallMs: Date.now() - now }, runs);
+	// Hourly is plenty: ~720 ticks a day each write ~9 rows.
+	if (new Date(now).getUTCMinutes() < 2) await pruneSourceRuns(env, SOURCE_RUNS_KEEP_DAYS);
+
 	return {
+		runId,
 		companies: companies.map((company) => company.name),
 		polled,
-		newIds,
-		detailed,
+		newIds: funnel.newIds,
+		detailed: funnel.detailed,
 		notified,
 		errors,
 		subrequests: budget.spent,
+		funnel,
 	};
 }
 
@@ -218,18 +325,27 @@ interface HealthCounts {
 	jobs: number;
 	pending: number;
 	errors: number;
-	cursor: number;
+	/** Active companies not polled in the last 6h. Should be 0 when sharding keeps up. */
+	stale6h: number;
+	/** Ticks in the last 24h that opened a source_runs row and never closed it: killed by a limit. */
+	unfinishedTicks24h: number;
 }
 
 /** Row counts straight out of D1 — also the liveness check on the binding. */
 async function readCounts(env: Env): Promise<HealthCounts> {
-	const [companies, seen, jobs, pending, errors, cursor] = await env.DB.batch<{ n: number | string | null }>([
+	const [companies, seen, jobs, pending, errors, stale, unfinished] = await env.DB.batch<{ n: number | string | null }>([
 		env.DB.prepare(`SELECT COUNT(*) AS n FROM companies WHERE active = 1`),
 		env.DB.prepare(`SELECT COUNT(*) AS n FROM seen_postings`),
 		env.DB.prepare(`SELECT COUNT(*) AS n FROM jobs`),
 		env.DB.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE notified = 0`),
 		env.DB.prepare(`SELECT COUNT(*) AS n FROM errors`),
-		env.DB.prepare(`SELECT value AS n FROM meta WHERE key = 'cursor'`),
+		env.DB.prepare(`SELECT COUNT(*) AS n FROM companies WHERE active = 1 AND (last_polled_at IS NULL OR last_polled_at < ?1)`).bind(
+			new Date(Date.now() - 6 * 3_600_000).toISOString(),
+		),
+		env.DB.prepare(`SELECT COUNT(*) AS n FROM source_runs WHERE kind = 'tick' AND finished_at IS NULL AND started_at > ?1 AND started_at < ?2`).bind(
+			new Date(Date.now() - 24 * 3_600_000).toISOString(),
+			new Date(Date.now() - 5 * 60_000).toISOString(),
+		),
 	]);
 
 	const count = (result: D1Result<{ n: number | string | null }>): number => {
@@ -243,7 +359,8 @@ async function readCounts(env: Env): Promise<HealthCounts> {
 		jobs: count(jobs),
 		pending: count(pending),
 		errors: count(errors),
-		cursor: count(cursor),
+		stale6h: count(stale),
+		unfinishedTicks24h: count(unfinished),
 	};
 }
 
@@ -278,6 +395,19 @@ export default {
 			}
 			return Response.json(await runTick(env));
 		}
+
+		if (request.method === 'POST' && url.pathname === '/ingest') return handleIngest(request, env);
+		if (request.method === 'POST' && url.pathname === '/tg-webhook') return handleTelegramWebhook(request, env);
+		if (request.method === 'GET' && url.pathname === '/queue') return handleQueue(request, env);
+
+		if (url.pathname === '/x/state') {
+			if (request.method === 'GET') return handleXState(request, env);
+			if (request.method === 'POST') return handleXStateWrite(request, env);
+		}
+		if (request.method === 'POST' && url.pathname === '/x/alert') return handleXAlert(request, env);
+
+		const statusRoute = /^\/jobs\/(\d+)\/status$/.exec(url.pathname);
+		if (request.method === 'POST' && statusRoute?.[1] !== undefined) return handleJobStatus(request, env, Number(statusRoute[1]));
 
 		return new Response('not found', { status: 404 });
 	},

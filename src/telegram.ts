@@ -7,7 +7,7 @@ export function escapeHtml(text: string): string {
 }
 
 export function formatJob(job: Job): string {
-	const location = job.location !== '' ? ` — ${escapeHtml(job.location)}` : '';
+	const location = job.location !== '' ? ` - ${escapeHtml(job.location)}` : '';
 	return `<b>${escapeHtml(job.company)}</b>: <a href="${escapeHtml(job.url)}">${escapeHtml(job.title)}</a>${location}`;
 }
 
@@ -36,5 +36,22 @@ export async function sendMessage(env: Env, text: string): Promise<void> {
 	});
 	if (!response.ok) {
 		throw new Error(`telegram sendMessage failed: ${response.status} ${(await response.text()).slice(0, 300)}`);
+	}
+}
+
+/**
+ * Any Bot API method that answers a webhook update (answerCallbackQuery,
+ * editMessageText, editMessageReplyMarkup). One subrequest. Throws on a non-2xx
+ * with the status and a slice of the body, never the URL: the URL carries the token.
+ */
+export async function callBot(env: Env, method: string, payload: Record<string, unknown>): Promise<void> {
+	const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(payload),
+		signal: AbortSignal.timeout(8_000),
+	});
+	if (!response.ok) {
+		throw new Error(`telegram ${method} failed: ${response.status} ${(await response.text()).slice(0, 300)}`);
 	}
 }

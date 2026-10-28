@@ -11,7 +11,7 @@ Telegram bot. Polls ATS job boards, filters, pushes new matching jobs to one Tel
 - FORBIDDEN deps: better-sqlite3, imapflow, node-cron, axios, dotenv, nodemailer, puppeteer.
 - DB is D1. Access via `env.DB.prepare(...).bind(...).run()/.all()/.first()`.
 - Free plan budget PER INVOCATION: 10ms CPU, 50 external subrequests, 6 concurrent connections.
-  → max 8 companies per tick, `p-limit`-style manual semaphore of 6 (`src/limit.ts`).
+  → 3 companies per tick (CPU is the binding limit, not subrequests), `p-limit`-style manual semaphore of 6 (`src/limit.ts`).
 - Cron Triggers do not retry. Every per-company call wrapped in try/catch.
   Errors go to the `errors` table, never console only.
 
@@ -19,8 +19,25 @@ Telegram bot. Polls ATS job boards, filters, pushes new matching jobs to one Tel
 
 - Two-phase fetch. Poll LIGHT endpoints (no `?content=true`). Diff ids against D1.
   Fetch full JD ONLY for ids not already in D1. Never regex a full JD in the poll path.
-- Cursor-based sharding. `meta` table holds `cursor`; each tick takes 8 companies, wraps around.
-- Dedupe key = sha256(company + '|' + normalizedTitle + '|' + location).
+- Least-recently-polled sharding. Each tick takes the 3 active companies (CPU-bound, see `config.ts`) with the oldest `companies.last_polled_at`
+  (NULL first) and stamps them BEFORE polling. Every board is reached once before any is reached twice.
+- Dedupe key = sha256(company + '|' + normalizedTitle + '|' + location) is the row key. On top of it,
+  `fuzzy_key` = sha256(lower(company) + '|' + normalizedTitle) merges the same role across locations and boards
+  inside `DEDUPE_WINDOW_DAYS` (14): the later sighting's locations are merged into the existing row, never re-sent.
+- Filter order is title hard-exclude (staff/senior/lead/II/L4...), title allow, per-place location check,
+  freshness, then JD gates. Unknown YOE is not sent unless `SEND_UNKNOWN_YOE` and an entry-level title.
+  Locations are split on `;` and a posting passes on ANY one India/remote-open place; only those are kept.
+- Search preferences live in `FILTERS` (`config.ts`): roles are FDE / AI / ML / LLM engineer only
+  (`entryBoostAllow: false`), any country (`allowInternational`; US-only and work-auth clauses still reject),
+  full time or an internship whose JD mentions a PPO or full-time conversion (`internRequiresPpo`).
+- Nothing applies without an Apply tap: `new` only moves on a button tap (webhook, locked to `TELEGRAM_CHAT_ID`)
+  or through the authenticated API. Telegram text has no em or en dashes. Machine endpoints answer 503 when their
+  secret is unset, never open. Details: `SETUP.md`.
+- A board that 404s `AUTO_DISABLE_404S` (5) polls in a row is switched off (`active = 0`) and logged to `errors`
+  with stage `auto-disable`. Only a 404 on the board request counts: a 404 on one job's detail does not, and any
+  other failure or a good poll resets the run (`companies.consec_404`).
+- `source_runs` records one row per tick and one per company per tick. A tick row with `finished_at IS NULL`
+  is a tick killed by a limit (shown as `unfinishedTicks24h` on /health).
 - Seeding is done LOCALLY, never in the Worker (`npm run seed`).
 
 ## Style
@@ -48,6 +65,8 @@ modules simply omit the parameter; TypeScript accepts the narrower signature, so
 | --------------------- | ---------- | --------------------------------------------- |
 | `greenhouse`/`lever`/`ashby` | ATS  | employer board slug                           |
 | `remotive`/`remoteok` | feed       | category slug, or `all`                       |
+| `smartrecruiters`    | ATS        | company identifier (case-insensitive). List is newest 100, no description; detail is 1 request per job. An unknown company answers 200 with an empty list, so an empty first page is reported as a 404. Drops contract/part-time/temporary |
+| `himalayas`           | role search | `query\|scope`, scope = `IN` / `WORLDWIDE` / blank (e.g. `ai engineer\|IN`). The `companies` row is a query, not an employer. Drops contract/part-time and senior-only postings in the source |
 | `adzuna`              | aggregator | `country:what:where` (e.g. `in:python developer:pune`) |
 | `jsearch`             | aggregator | `query\|country\|date_posted`                  |
 
@@ -67,11 +86,12 @@ Two caveats worth knowing before trusting their output:
 
 | table            | purpose                                                        |
 | ---------------- | -------------------------------------------------------------- |
-| `companies`      | board registry (`source`, `board` slug, `active`)               |
+| `companies`      | board or role-query registry (`source`, `board`, `active`). No CHECK on `source` since 0007: ids are validated in code, a new source needs no migration |
 | `seen_postings`  | every external id ever observed — the phase-1 diff set          |
-| `jobs`           | notified jobs keyed by `dedupe_key`                             |
+| `jobs`           | outbox AND approval queue, keyed by `dedupe_key`; the id in buttons is `rowid`. `status` new/approved/skipped/applying/applied/failed/manual, `url_norm` is the unique cross-source URL key, `sources` lists every source that found it. `/ingest` rows hang off the inactive `Ingest` company |
 | `errors`         | per-company failures, one row per catch                        |
-| `meta`           | key/value; holds `cursor`                                       |
+| `meta`           | key/value (the old `cursor` is unused since 0006)               |
+| `source_runs`    | per-tick and per-company funnel counters, errors, subrequests   |
 
 `seen_postings` and `jobs` are separate on purpose: a repost gets a new external id but the same
 `dedupe_key`, so id-diffing alone would refetch it forever while key-diffing alone would refetch

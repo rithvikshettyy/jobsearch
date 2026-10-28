@@ -13,6 +13,7 @@
     "migrate:remote": "wrangler d1 migrations apply job-bot-db --remote",
     "resolve": "node scripts/resolve.mjs",
     "seed": "node scripts/seed.mjs",
+    "discover-slugs": "node scripts/resolve.mjs",
     "seed:remote": "node scripts/seed.mjs --remote",
     "cf-typegen": "wrangler types"
   },

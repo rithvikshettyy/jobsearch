@@ -54,7 +54,8 @@ describe('matchesLocation', () => {
 	});
 
 	it('accepts remote when allowRemote is on', () => {
-		expect(matchesLocation('Remote - EMEA', config)).toBe(true);
+		expect(matchesLocation('Remote - APAC', config)).toBe(true);
+		expect(matchesLocation('Remote - EMEA', config)).toBe(false);
 	});
 
 	it('rejects remote when allowRemote is off', () => {

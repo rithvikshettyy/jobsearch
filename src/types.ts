@@ -1,4 +1,6 @@
-export type SourceId = 'greenhouse' | 'lever' | 'ashby' | 'remotive' | 'remoteok' | 'adzuna' | 'jsearch';
+import type { RunCounts } from './store';
+
+export type SourceId = 'greenhouse' | 'lever' | 'ashby' | 'remotive' | 'remoteok' | 'adzuna' | 'jsearch' | 'himalayas' | 'smartrecruiters';
 
 export interface Env {
 	DB: D1Database;
@@ -11,6 +13,14 @@ export interface Env {
 	ADZUNA_APP_KEY?: string;
 	/** RapidAPI key for JSearch. Absent = the jsearch source throws. */
 	RAPIDAPI_KEY?: string;
+	/** "true" sends jobs whose JD names no experience number, if the title reads entry-level. Default off. */
+	SEND_UNKNOWN_YOE?: string;
+	/** Shared secret for /ingest, /queue and /jobs/:id/status (header `X-Ingest-Key`). Unset = those endpoints answer 503. */
+	INGEST_KEY?: string;
+	/** Secret Telegram echoes in `X-Telegram-Bot-Api-Secret-Token` on every webhook call. Unset = /tg-webhook answers 503. */
+	TG_WEBHOOK_SECRET?: string;
+	/** Optional. When set, a button tap only counts if it comes from this Telegram user id. Needed for group chats. */
+	TELEGRAM_OWNER_USER_ID?: string;
 }
 
 export interface Company {
@@ -62,6 +72,7 @@ export interface Source {
 }
 
 export interface TickResult {
+	runId: string;
 	companies: string[];
 	polled: number;
 	newIds: number;
@@ -69,4 +80,6 @@ export interface TickResult {
 	notified: number;
 	errors: number;
 	subrequests: number;
+	/** Cumulative survivors per pipeline stage, same shape as a source_runs row. */
+	funnel: RunCounts;
 }

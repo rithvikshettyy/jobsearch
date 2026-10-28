@@ -15,7 +15,38 @@ export interface FilterConfig {
 	descriptionAllow: string[];
 	/** Description containing any of these is dropped. Phase 2 only. */
 	descriptionDeny: string[];
+	/**
+	 * A "remote" location only counts when it names one of these ("Remote - APAC",
+	 * "Worldwide"). Default: `REMOTE_OPEN`. Bare "Remote" is not enough.
+	 */
+	remoteOpen?: string[];
+	/**
+	 * Accept a bare "Remote" with no region at all. Default false: a US company's
+	 * plain "Remote" almost always means US-only.
+	 */
+	allowBareRemote?: boolean;
+	/**
+	 * Accept a place in any country. The US-only style clauses and the work
+	 * authorization clauses still reject. Default false.
+	 */
+	allowInternational?: boolean;
+	/**
+	 * Let an entry-level title ("Intern", "Graduate", "Junior") with a technical word
+	 * through even when `titleAllow` has no match. Default true. Off when the search
+	 * names exact roles, otherwise "Software Engineering Intern" slips past them.
+	 */
+	entryBoostAllow?: boolean;
+	/**
+	 * An internship title passes only when its JD offers a PPO or a conversion to
+	 * full time. Default false.
+	 */
+	internRequiresPpo?: boolean;
 }
+
+/** Regions a "remote" posting may name and still be open to a candidate in India. */
+export const REMOTE_OPEN = ['india', 'apac', 'asia pacific', 'asia', 'worldwide', 'anywhere', 'global', 'globally'];
+
+type GeoConfig = Pick<FilterConfig, 'locationAllow' | 'allowRemote' | 'remoteOpen' | 'allowBareRemote' | 'allowInternational'>;
 
 const REMOTE_HINTS = ['remote', 'anywhere', 'distributed', 'work from home'];
 
@@ -25,8 +56,7 @@ function containsAny(haystack: string, needles: string[]): boolean {
 }
 
 export function matchesTitle(title: string, config: FilterConfig): boolean {
-	if (containsAny(title, config.titleDeny)) return false;
-	return config.titleAllow.length === 0 || containsAny(title, config.titleAllow);
+	return roleOk(title, config);
 }
 
 export function isRemote(location: string): boolean {
@@ -34,8 +64,7 @@ export function isRemote(location: string): boolean {
 }
 
 export function matchesLocation(location: string, config: FilterConfig): boolean {
-	if (config.allowRemote && isRemote(location)) return true;
-	return config.locationAllow.length === 0 || containsAny(location, config.locationAllow);
+	return geoOk(location, config);
 }
 
 export function isFresh(postedAt: string | null, config: FilterConfig, now: number): boolean {
@@ -81,8 +110,6 @@ const SENIORITY_DENY = [
 	'vp',
 	'vice president',
 	'architect',
-	'intern',
-	'internship',
 ];
 
 /** Phrases that gate a req behind citizenship or a visa this search cannot clear. */
@@ -239,14 +266,40 @@ function containsPhrase(flat: string, phrase: string): boolean {
 const JUNIOR_OVERRIDE = ['l1', 'level 1', 'i1'];
 
 /**
- * Title gate. The seniority denylist always applies; `config` layers the
- * per-search allow/deny on top when supplied.
+ * Hard title exclude, run BEFORE any allowlist or YOE parsing. Case-insensitive,
+ * with a hand-rolled right boundary so "sr." and "SRE" are told apart and
+ * "Leadership Program" is not "lead".
+ *
+ * Two tiers: STRICT markers are never waived, SOFT ones can be by an explicit
+ * L1 band ("Technical Lead L1").
  */
-export function roleOk(title: string, config?: Pick<FilterConfig, 'titleAllow' | 'titleDeny'>): boolean {
+const HARD_EXCLUDE_STRICT = /\b(?:staff|senior|sr\.?|principal|director|architect|ii|iii|iv|l4|l5|sde[ -]?[23]|intermediate|(?:engineer|developer|scientist) ?[2-9])(?![a-z0-9])/i;
+const HARD_EXCLUDE_SOFT = /\b(?:lead|manager|head)(?![a-z0-9])/i;
+
+/** Titles that read as entry-level. Boosts the allowlist and gates unknown YOE. */
+const TITLE_INCLUDE = /\b(?:intern|internship|fresher|graduate|new grad|entry|junior|jr\.?|trainee|associate|sde[ -]?1|engineer i)(?![a-z0-9])/i;
+
+/** A boosted title must still name a technical role: "Industrial Trainee" is not one. */
+const TECH_WORD =
+	/\b(?:engineer|engineering|developer|software|sde|swe|programmer|ml|ai|data|python|react|frontend|front end|backend|back end|full ?stack|machine learning)(?![a-z0-9])/i;
+
+/** True when the title reads as entry-level (intern, fresher, junior, SDE 1 ...). */
+export function titleBoost(title: string): boolean {
+	return TITLE_INCLUDE.test(title);
+}
+
+/**
+ * Title gate. The hard exclude always applies and runs first; `config` layers
+ * the per-search allow/deny on top when supplied.
+ */
+export function roleOk(title: string, config?: Pick<FilterConfig, 'titleAllow' | 'titleDeny' | 'entryBoostAllow'>): boolean {
 	const flat = normalize(title);
-	// An explicit L1 band overrides both denylists — but never the allowlist, so
-	// a non-engineering "Support L1" still has to match a role keyword.
+	// An explicit L1 band overrides "lead" and the denylists, but never the
+	// strict level markers and never the allowlist, so a non-engineering
+	// "Support L1" still has to match a role keyword.
 	const junior = JUNIOR_OVERRIDE.some((tag) => containsPhrase(flat, tag));
+	if (HARD_EXCLUDE_STRICT.test(title)) return false;
+	if (!junior && HARD_EXCLUDE_SOFT.test(title)) return false;
 	if (!junior && SENIORITY_DENY.some((word) => containsPhrase(flat, word))) return false;
 	if (config === undefined) return true;
 	// Whole-token, not substring: the search carries short keywords ("swe", "sde")
@@ -254,32 +307,83 @@ export function roleOk(title: string, config?: Pick<FilterConfig, 'titleAllow' |
 	// software role. Normalisation flattens punctuation first, so a single
 	// "full stack" entry covers "Full-Stack" and "Full Stack" alike.
 	if (!junior && config.titleDeny.some((word) => containsPhrase(flat, word))) return false;
-	return config.titleAllow.length === 0 || config.titleAllow.some((word) => containsPhrase(flat, word));
+	if (config.titleAllow.length === 0) return true;
+	if (config.titleAllow.some((word) => containsPhrase(flat, word))) return true;
+	if (config.entryBoostAllow === false) return false;
+	return titleBoost(title) && TECH_WORD.test(title);
+}
+
+/** "Intern", "Interns", "Internship", but not "Internal Tools Engineer". */
+const INTERN_TITLE = /\b(?:intern|interns|internship)(?![a-z0-9])/i;
+
+/** A PPO, a pre-placement offer, or a stated conversion to a full-time role. */
+const PPO_TEXT =
+	/\b(?:ppo|pre[\s-]?placement\s+offer|return\s+offer|(?:convert(?:ed|ible|s)?|conversion)\s+(?:in)?to\s+(?:a\s+)?(?:full[\s-]?time|permanent)|full[\s-]?time\s+(?:conversion|offer|employment|role\s+(?:after|upon)))(?![a-z0-9])/i;
+
+export function isInternTitle(title: string): boolean {
+	return INTERN_TITLE.test(title);
+}
+
+export function mentionsPpo(text: string): boolean {
+	return PPO_TEXT.test(text);
+}
+
+/**
+ * One posting often carries several places: Greenhouse joins them with ";"
+ * ("Bengaluru, India; Lisbon, Portugal"). Commas stay put, they separate a
+ * city from its country.
+ */
+export function splitLocations(text: string): string[] {
+	return text
+		.split(/\s*(?:;|\||\n|\s\/\s|\sor\s)\s*/i)
+		.map((part) => part.trim())
+		.filter((part) => part !== '');
+}
+
+/** One place on its own. Whole-token matching, so "Indiana" is not "India". */
+function placeOk(part: string, config: GeoConfig): boolean {
+	const flat = normalize(part);
+	if (GEO_ONLY_DENY.some((phrase) => containsPhrase(flat, phrase))) return false;
+	if (config.allowInternational === true) return true;
+	if (config.locationAllow.length === 0) return true;
+	if (config.locationAllow.some((place) => containsPhrase(flat, place))) return true;
+	if (!config.allowRemote) return false;
+
+	// "Worldwide" and "Anywhere" are answers on their own, a bare "Remote" is not.
+	const open = config.remoteOpen ?? REMOTE_OPEN;
+	if (open.some((marker) => containsPhrase(flat, marker))) return true;
+	// "Remote - Portugal" and "US-Remote" name a region this search cannot serve.
+	if (config.allowBareRemote === true && isRemote(part)) return !FOREIGN_REGION.some((region) => containsPhrase(flat, region));
+	return false;
+}
+
+/**
+ * The places of `text` this search can serve. Empty = the posting is out.
+ * A multi-location posting passes on ANY one eligible place, and callers store
+ * only these so a message never advertises Lisbon.
+ */
+export function eligibleLocations(text: string, config: GeoConfig): string[] {
+	const flat = normalize(text);
+	if (WORK_AUTH_DENY.some((phrase) => containsPhrase(flat, phrase))) return [];
+	return splitLocations(text).filter((part) => placeOk(part, config));
 }
 
 /**
  * Location / work-authorization gate. Runs over a location string or a whole
  * JD — both carry the same disqualifiers.
  *
- * Order matters: a US-only or sponsorship clause is checked BEFORE the remote
- * shortcut, so "Remote (US only)" is rejected rather than waved through on the
- * word "remote".
+ * Without `config` it applies only the work-authorization and US-only clauses
+ * (the JD path). With `config`, `text` is split into places and one eligible
+ * place is enough, see `eligibleLocations`. A US-only clause on a place is
+ * checked before the remote shortcut, so "Remote (US only)" never passes.
  */
-export function geoOk(text: string, config?: Pick<FilterConfig, 'locationAllow' | 'allowRemote'>): boolean {
-	const flat = normalize(text);
-	if (WORK_AUTH_DENY.some((phrase) => containsPhrase(flat, phrase))) return false;
-	if (GEO_ONLY_DENY.some((phrase) => containsPhrase(flat, phrase))) return false;
-	if (config === undefined) return true;
-
-	const named = config.locationAllow.length === 0 || containsAny(text, config.locationAllow);
-	if (named) return true;
-
-	// "Remote" only counts when it is not bound to a region this search cannot
-	// serve. Without this, `allowRemote` waved through "US-Remote, Chicago" and
-	// "Portugal, Remote" on the bare word "remote".
-	if (config.allowRemote && isRemote(text)) return !FOREIGN_REGION.some((region) => containsPhrase(flat, region));
-
-	return false;
+export function geoOk(text: string, config?: GeoConfig): boolean {
+	if (config === undefined) {
+		const flat = normalize(text);
+		if (WORK_AUTH_DENY.some((phrase) => containsPhrase(flat, phrase))) return false;
+		return !GEO_ONLY_DENY.some((phrase) => containsPhrase(flat, phrase));
+	}
+	return eligibleLocations(text, config).length > 0;
 }
 
 /** A range ("0-2 years", "1 to 3 yrs") — the LOW end is the requirement floor. */
@@ -329,4 +433,13 @@ export function minYoe(text: string): number | null {
 export function yoeOk(text: string, maxYoe = 2): boolean {
 	const floor = minYoe(text);
 	return floor === null || floor <= maxYoe;
+}
+
+/** What the JD says about experience, for the three-way gate in the pipeline. */
+export type YoeVerdict = 'ok' | 'unknown' | 'reject';
+
+export function yoeVerdict(text: string, maxYoe = 2): YoeVerdict {
+	const floor = minYoe(text);
+	if (floor === null) return 'unknown';
+	return floor <= maxYoe ? 'ok' : 'reject';
 }

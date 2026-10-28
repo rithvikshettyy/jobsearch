@@ -13,3 +13,11 @@ ADZUNA_APP_KEY=dummy-adzuna-app-key
 # JSearch via RapidAPI: https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
 # Free tier is 200 requests/MONTH — see migrations/0005 before activating it.
 RAPIDAPI_KEY=dummy-rapidapi-key
+
+# Send jobs whose JD names no years of experience, if the title reads entry-level.
+# Default false. Also set in wrangler.jsonc vars for production.
+SEND_UNKNOWN_YOE=false
+
+# Part 2: Telegram approval queue. Real values via `npx wrangler secret put`, see SETUP.md.
+INGEST_KEY=local-dev-ingest-key
+TG_WEBHOOK_SECRET=local-dev-webhook-secret
