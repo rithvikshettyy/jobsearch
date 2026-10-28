@@ -1,0 +1,29 @@
+{
+  "searches": [
+    { "query": "AI Engineer", "locations": ["India"], "remote_only": false },
+    { "query": "Machine Learning Engineer", "locations": ["India"], "remote_only": false },
+    { "query": "LLM Engineer", "locations": ["India"], "remote_only": false },
+    { "query": "Forward Deployed Engineer", "locations": ["India"], "remote_only": false },
+    { "query": "AI Engineer", "locations": ["Worldwide"], "remote_only": true },
+    { "query": "Forward Deployed Engineer", "locations": ["Worldwide"], "remote_only": true }
+  ],
+  "filters": {
+    "time": "day",
+    "types": ["full_time", "internship"],
+    "experience": ["internship", "entry_level", "associate"]
+  },
+  "limits": {
+    "jobs_per_search": 10,
+    "max_searches": 8,
+    "max_jobs_per_search_cap": 15
+  },
+  "pacing": {
+    "slow_mo_seconds": 1.5,
+    "page_load_timeout_seconds": 40
+  },
+  "min_interval_hours": 6,
+  "pause_hours_after_throttle": 24,
+  "ingest": {
+    "batch_size": 25
+  }
+}

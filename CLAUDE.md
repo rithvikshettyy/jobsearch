@@ -33,6 +33,10 @@ Telegram bot. Polls ATS job boards, filters, pushes new matching jobs to one Tel
 - Nothing applies without an Apply tap: `new` only moves on a button tap (webhook, locked to `TELEGRAM_CHAT_ID`)
   or through the authenticated API. Telegram text has no em or en dashes. Machine endpoints answer 503 when their
   secret is unset, never open. Details: `SETUP.md`.
+- LinkedIn: the original spec said "No LinkedIn automation". On 2026-10-28 the user chose to override that for
+  READING only, via `linkedin-scraper/` (needs a signed-in session, breaks LinkedIn's terms). Keep it read-only: never
+  apply, never accept a password or cookie in this repo, keep the opt-in (`LINKEDIN_ACCEPT_RISK`), the volume caps and
+  the 24 hour pause on any throttle. Do not widen any of those without the user asking.
 - A board that 404s `AUTO_DISABLE_404S` (5) polls in a row is switched off (`active = 0`) and logged to `errors`
   with stage `auto-disable`. Only a 404 on the board request counts: a 404 on one job's detail does not, and any
   other failure or a good poll resets the run (`companies.consec_404`).

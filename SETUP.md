@@ -142,3 +142,20 @@ counts as a 404. A real company with nothing open for 5 polls in a row is switch
 `UPDATE companies SET active = 1, consec_404 = 0 WHERE name = '...'`.
 
 `companies.last_polled_at` and `fail_count` were added in migration 0006; `consec_404` is the counter above.
+
+## LinkedIn reader (optional, read the warning first)
+
+Lives in `linkedin-scraper/` and uses the `linkedin-jobs-scraper` library. The library needs a signed-in LinkedIn
+session, scraping breaks LinkedIn's terms, and LinkedIn restricts accounts that do it, so use an account you can
+afford to lose. It overrides the original "no LinkedIn automation" rule on purpose and only ever reads. A live run
+refuses to start until `.env` says `LINKEDIN_ACCEPT_RISK=yes`. Full steps, the guard rails and the schedule command are
+in `linkedin-scraper/README.md`.
+
+The Worker needs no new secret for it: jobs arrive on `/ingest` with `source` set to `linkedin`, and go through the
+same gates as every other source.
+
+## Ashby boards
+
+Ashby is polled from `https://api.ashbyhq.com/posting-api/job-board/{board}`. To add a board, give it a `companies`
+row with `source = 'ashby'` and `board` set to the name in the URL (`https://jobs.ashbyhq.com/<board>`). The easy way
+is `npm run discover-slugs`, which probes Ashby along with Greenhouse, Lever and SmartRecruiters and writes the SQL.

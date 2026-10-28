@@ -1,0 +1,61 @@
+{
+  "_note": "Made-up jobs shaped like the library's EventData, for offline runs and tests. Not real postings.",
+  "jobs": [
+    {
+      "job_id": "4000000001",
+      "link": "https://in.linkedin.com/jobs/view/ai-engineer-at-acme-4000000001?refId=abc&trackingId=xyz&position=3",
+      "title": "AI Engineer",
+      "company": "Acme Labs",
+      "place": "Bengaluru, Karnataka, India",
+      "date": "2026-10-27",
+      "insights": ["Full-time", "Entry level"],
+      "description": "Acme Labs is a 15 year old company building agents. You will build and evaluate LLM applications. We want 0-2 years of experience with Python. You will work with a small team. Strong candidates may convert to a full time role."
+    },
+    {
+      "job_id": "4000000001",
+      "link": "https://www.linkedin.com/jobs/view/4000000001/?trackingId=other",
+      "title": "AI Engineer",
+      "company": "Acme Labs",
+      "place": "Bengaluru, Karnataka, India",
+      "date": "2026-10-27",
+      "description": "The same posting seen again through another search."
+    },
+    {
+      "job_id": "4000000002",
+      "link": "https://www.linkedin.com/jobs/view/4000000002/",
+      "title": "LLM Engineer",
+      "company": "Beta AI",
+      "place": "Hyderabad, Telangana, India",
+      "date": "2026-10-26",
+      "description": "Own our LLM platform. Requires 5+ years of experience shipping ML systems. Experience with Kubernetes is a plus."
+    },
+    {
+      "job_id": "4000000003",
+      "link": "https://www.linkedin.com/jobs/view/4000000003/",
+      "title": "Forward Deployed Engineer",
+      "company": "Gamma",
+      "place": "Remote",
+      "date": "2026-10-28",
+      "insights": ["Remote", "Full-time"],
+      "description": "Work with customers on site or remotely. You must be authorized to work in the United States. We do not offer visa sponsorship. 1-3 years of experience."
+    },
+    {
+      "job_id": "4000000004",
+      "link": "https://www.linkedin.com/jobs/view/4000000004/",
+      "title": "Machine Learning Intern",
+      "company": "Delta Research",
+      "place": "Mumbai, Maharashtra, India",
+      "date": "2026-10-28",
+      "description": "Six month internship working on retrieval models. Outstanding interns receive a PPO. No prior experience needed."
+    },
+    {
+      "job_id": "4000000005",
+      "link": "https://www.linkedin.com/jobs/view/4000000005/",
+      "title": "AI Engineer",
+      "company": "",
+      "place": "Pune, India",
+      "date": "2026-10-28",
+      "description": "A posting with no company name, which cannot be queued."
+    }
+  ]
+}

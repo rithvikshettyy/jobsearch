@@ -27,6 +27,7 @@ for the schedule. No server, no queue.
 | --- | --- | --- |
 | Worker | [`src/`](src/) | Polls, filters, dedupes, queues, sends, handles taps |
 | X scraper | [`x-scraper/`](x-scraper/) | Reads job tweets from chosen accounts and posts them to `/ingest` |
+| LinkedIn reader | [`linkedin-scraper/`](linkedin-scraper/) | Optional. Reads LinkedIn listings with a signed-in session, read-only. Read its README first |
 | Ops guide | [`SETUP.md`](SETUP.md) | Secrets, the `setWebhook` call, every endpoint, board discovery |
 | Contributor notes | [`CLAUDE.md`](CLAUDE.md) | The hard constraints, in the order they bite |
 
@@ -282,12 +283,13 @@ fails the build rather than at runtime. That means no `fs`, `net`, `path`, or No
 arrives on the `env` argument.
 
 Anything needing Node or Python lives outside `src/`: [`scripts/`](scripts/) is local tooling
-and [`x-scraper/`](x-scraper/) is a separate Python project. Neither ships to the Worker.
+and [`x-scraper/`](x-scraper/) and [`linkedin-scraper/`](linkedin-scraper/) are separate Python projects.
+None of them ship to the Worker.
 
 ## Not built yet
 
 - A local applier that reads `GET /queue?status=approved`, scores each job against your CV,
   tailors the CV and fills the form. It stops before Submit, so you press it.
 - More free role-search feeds (Jobicy, Arbeitnow, We Work Remotely), a Hacker News "Who is
-  hiring" reader, and a local JobSpy runner for Indeed, Naukri and Google Jobs.
+  hiring" reader, and a local JobSpy runner for Indeed, Naukri, Google Jobs and logged-out LinkedIn.
 - A weekly Telegram summary of per-source health.
