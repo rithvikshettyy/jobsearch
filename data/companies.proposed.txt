@@ -1,0 +1,100 @@
+# PROPOSED additions for review. NOT applied anywhere.
+# Probe with:  node scripts/resolve.mjs --in data/companies.proposed.txt --out seed.proposed.sql
+# Review seed.proposed.sql, then apply with:
+#   npx wrangler d1 execute job-bot-db --remote --file=seed.proposed.sql --yes
+
+# India product startups and scale-ups that hire freshers
+Razorpay = greenhouse:razorpaysoftwareprivatelimited
+Zepto = lever:zepto
+Swiggy = lever:swiggy
+Cars24
+CoinDCX
+Dream Sports = greenhouse:dreamsports
+Sprinklr
+Juspay
+Navi
+Unacademy
+upGrad
+PhysicsWallah
+Lenskart
+ShareChat
+Rapido
+Mindtickle
+Sarvam AI = ashby:sarvam
+Observe.AI = lever:observeai
+Yellow.ai = greenhouse:yellowai
+Hevo Data
+Setu
+Fampay
+Zeta
+Gupshup
+Pine Labs
+Jupiter
+Uni Cards
+Eightfold
+Zoomcar
+Simpl
+Park+
+Even Healthcare
+Spry
+Whatfix = greenhouse:whatfix
+Chargebee = greenhouse:chargebee
+BrowserStack = greenhouse:browserstack
+CleverTap = greenhouse:clevertap
+Darwinbox = greenhouse:darwinbox
+Innovaccer = greenhouse:innovaccer
+Rocketlane = ashby:rocketlane
+Hasura = greenhouse:hasura
+Appsmith = ashby:appsmith
+
+# Global companies with real India engineering hiring and new-grad programs
+Atlassian = greenhouse:atlassian
+Salesforce = greenhouse:salesforce
+Adobe
+Intuit
+Visa
+Uber
+Rubrik
+Nutanix
+Sumo Logic
+Okta
+Zscaler
+Cohesity
+Freshworks = greenhouse:freshworks
+Zendesk
+HashiCorp
+Snyk
+Amplitude
+Airbnb
+Coinbase
+Gitlab = greenhouse:gitlab
+AppDynamics
+Thoughtspot
+
+# AI-native companies for the FDE / AI / ML / LLM engineer search. Verified 2026-10-28:
+# each board returned HTTP 200, has openings, has at least one matching title, and its
+# list payload parses well under the 10ms CPU budget (largest here is Anthropic, ~4ms locally).
+# Left out on purpose:
+#   OpenAI (ashby:openai, 13 MB list, 47ms parse) and Palantir (lever:palantir, 5.8 MB, 32ms)
+#   Harvey (ashby:harvey, 4.7 MB, 13ms)       -> too big for a Worker, use the local runner instead
+#   Notion (ashby:notion, 2.5 MB, 5ms)         -> borderline, add only after the CPU numbers are in
+Anthropic = greenhouse:anthropic
+Scale AI = greenhouse:scaleai
+Glean = greenhouse:gleanwork
+Perplexity = ashby:perplexity
+Cohere = ashby:cohere
+Cursor = ashby:cursor
+ElevenLabs = ashby:elevenlabs
+Pinecone = ashby:pinecone
+Writer = ashby:writer
+Together AI = greenhouse:togetherai
+Fireworks AI = ashby:fireworks
+Replit = ashby:replit
+Cognition = ashby:cognition
+Cerebras = ashby:cerebras
+Modal = ashby:modal
+Baseten = ashby:baseten
+Cresta = greenhouse:cresta
+Mercor = ashby:mercor
+Turing = greenhouse:turing
+Invisible Technologies = greenhouse:invisibletech
